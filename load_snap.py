@@ -20,10 +20,10 @@
     --------
         struct.error: unpack requires a bytes object of length 24
 """
-
-import numpy as np
-import struct
 import sys
+import struct
+import numpy as np
+import matplotlib.pyplot as plt
 
 
 class Snap:
@@ -74,6 +74,8 @@ class RawSnap(Snap):
             self.N = int(str_list[5])
         else:
             self.N = self.file_size // 12
+        self.Lx = int(str_list[3])
+        self.Ly = int(str_list[4])
         self.frame_size = self.N * 3 * 4
         self.fmt = "%df" % (3 * self.N)
 
@@ -120,25 +122,96 @@ class CoarseGrainSnap(Snap):
         return frame
 
 
+def coarse_grain(x, y, theta=None, Lx=None, Ly=None, ncols=None, nrows=None):
+    """ Coarse grain the raw snapshot over boxes with size (lx, ly)
+
+        Parameters:
+        --------
+        x, y: np.ndarray
+            Coordination of particles.
+        theta: np.ndarray, optional
+            Moving direction of particles, return coarse grain velocity field
+            if given.
+        ncols, nrows: int, optional
+            Number of columns and rows of boxes for coarse grain.
+
+        Returns:
+        --------
+        rho: np.ndarray
+            Coarse grained density field.
+        vx, vy: np.ndarray
+            Coarse grained velocity fields.
+    """
+
+    if Lx is None:
+        Lx = int(np.round(x.max()))
+    if Ly is None:
+        Ly = int(np.round(y.max()))
+    if ncols is None:
+        ncols = Lx
+    if nrows is None:
+        nrows = Ly
+    print(Lx, Ly, ncols, nrows)
+    lx = Lx / ncols
+    ly = Ly / nrows
+
+    n = x.size
+    rho = np.zeros((nrows, ncols), int)
+    if theta is not None:
+        flag_v = True
+        vx = np.zeros((nrows, ncols))
+        vy = np.zeros((nrows, ncols))
+        cos_theta = np.cos(theta)
+        sin_theta = np.sin(theta)
+    else:
+        flag_v = False
+
+    for i in range(n):
+        col = int(x[i]/lx)
+        row = int(y[i]/ly)
+        rho[row, col] += 1
+        if flag_v:
+            vx[row, col] += cos_theta[i]
+            vy[row, col] += sin_theta[i]
+    mask = rho > 0
+    vx[mask] /= rho[mask]
+    vy[mask] /= rho[mask]
+    rho = rho / (lx * ly)
+    vx /= (lx * ly)
+    vy /= (lx * ly)
+    return rho, vx, vy
+
+
+def plot_coarse_grained_snap(rho, vx, vy=None, ax=None, t=None):
+    plt.subplot(121)
+    rho[rho > 4] = 4
+    plt.contour(rho, vmax=4, level=[0, 1, 2, 3, 4], extend="max")
+    plt.colorbar()
+    plt.subplot(122)
+    plt.contourf(vx)
+    plt.colorbar()
+    if t is not None:
+        plt.suptitle(r"$t=%d$" % t)
+    plt.show()
+    plt.close()
+
+
 if __name__ == "__main__":
     """ Just for test. """
-    import matplotlib.pyplot as plt
     import os
     # os.chdir(r"D:\code\VM\VM\coarse")
     # file = r"cBbb_0.35_0_140_200_140_200_28000_1.08_13.bin"
     # snap = CoarseGrainSnap(file)
     # frames = snap.gene_frames(90, 100)
     # for i, frame in enumerate(frames):
-    #     plt.contourf(frame[4])
-    #     plt.title(r"$t=%d$" % frame[0])
-    #     plt.show()
-    #     plt.close()
+    #     rho = frame[3]
+    #     vx = frame[4]
+    #     plot_coarse_grained_snap(rho, vx, frame[0])
 
     os.chdir(r"D:\tmp")
-    file = r'so_0.35_0_150_400_60000_2000_1234.bin'
+    file = r'so_0.35_0_150_900_135000_2000_1234.bin'
     snap = RawSnap(file)
-    for i, frame in enumerate(snap.gene_frames(100, 110)):
+    for i, frame in enumerate(snap.gene_frames(200, 202)):
         x, y, theta = frame
-        plt.plot(x, y, "o")
-        plt.show()
-        plt.close()
+        rho, vx, vy = coarse_grain(x, y, theta, nrows=100)
+        plot_coarse_grained_snap(rho, vx, t=i)
