@@ -152,8 +152,8 @@ def coarse_grain(x, y, theta=None, Lx=None, Ly=None, ncols=None, nrows=None):
     if nrows is None:
         nrows = Ly
     print(Lx, Ly, ncols, nrows)
-    lx = Lx / ncols
-    ly = Ly / nrows
+    ncols_over_Lx = ncols / Lx
+    nrows_over_Ly = nrows / Ly
 
     n = x.size
     rho = np.zeros((nrows, ncols), int)
@@ -167,22 +167,27 @@ def coarse_grain(x, y, theta=None, Lx=None, Ly=None, ncols=None, nrows=None):
         flag_v = False
 
     for i in range(n):
-        col = int(x[i]/lx)
-        row = int(y[i]/ly)
+        col = int(x[i] * ncols_over_Lx)
+        row = int(y[i] * nrows_over_Ly)
         rho[row, col] += 1
         if flag_v:
             vx[row, col] += cos_theta[i]
             vy[row, col] += sin_theta[i]
-    mask = rho > 0
-    vx[mask] /= rho[mask]
-    vy[mask] /= rho[mask]
-    rho = rho / (lx * ly)
-    vx /= (lx * ly)
-    vy /= (lx * ly)
-    return rho, vx, vy
+    cell_area = Lx / ncols * Ly / nrows
+    if flag_v:
+        mask = rho > 0
+        vx[mask] /= rho[mask]
+        vy[mask] /= rho[mask]
+        rho = rho / cell_area
+        vx /= cell_area
+        vy /= cell_area
+        return rho, vx, vy
+    else:
+        rho = rho / cell_area
+        return rho
 
 
-def plot_coarse_grained_snap(rho, vx, vy=None, ax=None, t=None):
+def plot_contour(rho, vx, vy=None, ax=None, t=None):
     plt.subplot(121)
     rho[rho > 4] = 4
     plt.contour(rho, vmax=4, level=[0, 1, 2, 3, 4], extend="max")
@@ -199,6 +204,8 @@ def plot_coarse_grained_snap(rho, vx, vy=None, ax=None, t=None):
 if __name__ == "__main__":
     """ Just for test. """
     import os
+    from scipy.ndimage import gaussian_filter
+    from smooth_filter import bilateral_filter, gauss_filter
     # os.chdir(r"D:\code\VM\VM\coarse")
     # file = r"cBbb_0.35_0_140_200_140_200_28000_1.08_13.bin"
     # snap = CoarseGrainSnap(file)
@@ -209,9 +216,31 @@ if __name__ == "__main__":
     #     plot_coarse_grained_snap(rho, vx, frame[0])
 
     os.chdir(r"D:\tmp")
-    file = r'so_0.35_0_150_900_135000_2000_1234.bin'
+    file = r'so_0.35_0_220_600_132000_2000_1234.bin'
     snap = RawSnap(file)
-    for i, frame in enumerate(snap.gene_frames(200, 202)):
+    for i, frame in enumerate(snap.gene_frames(300, 301)):
         x, y, theta = frame
-        rho, vx, vy = coarse_grain(x, y, theta, nrows=100)
-        plot_coarse_grained_snap(rho, vx, t=i)
+        rho, vx, vy = coarse_grain(x, y, theta)
+
+        rho_c = 1.5
+        plt.subplot(131)
+        rho0 = rho.copy()
+        # rho0[rho0 < rho_c] = 0
+        plt.imshow(
+            rho0, interpolation="none", vmax=4, origin="lower", cmap="jet")
+        # plt.colorbar()
+        plt.subplot(132)
+        rho1 = gaussian_filter(rho, sigma=[1.0, 0.8], mode="wrap")
+        # rho1[rho1 < rho_c] = 0
+        plt.imshow(
+            rho1, interpolation="none", vmax=4, origin="lower", cmap="jet")
+        # plt.colorbar()
+        plt.subplot(133)
+        rho2 = bilateral_filter(rho, sigma_s=[1.0, 0.8], sigma_c=2.5)
+        # rho2 = gauss_filter(rho, sigma=[0.8, 0.8])
+        # rho2[rho2 < rho_c] = 0
+        plt.imshow(
+            rho2, interpolation="none", vmax=4, origin="lower", cmap="jet")
+        # plt.colorbar()
+        plt.show()
+        plt.close()
