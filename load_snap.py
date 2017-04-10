@@ -56,14 +56,19 @@ class Snap:
                   (self.file_size // self.frame_size))
             sys.exit()
 
-    def gene_frames(self, beg_idx=0, end_idx=None):
+    def gene_frames(self, beg_idx=0, end_idx=None, interval=1):
         self.f.seek(beg_idx * self.frame_size)
         if end_idx is None:
             max_size = self.file_size
         else:
             max_size = end_idx * self.frame_size
+        count = 0
         while max_size - self.f.tell() >= self.frame_size:
-            yield self.one_frame()
+            if count % interval == 0:
+                yield self.one_frame()
+            else:
+                self.f.seek(self.frame_size, 1)
+            count += 1
 
 
 class RawSnap(Snap):
@@ -84,6 +89,15 @@ class RawSnap(Snap):
         data = struct.unpack(self.fmt, buff)
         frame = np.array(data, float).reshape(self.N, 3).T
         return frame
+
+    def show(self, beg_idx=0, end_idx=None, interval=1, markersize=1):
+        for i, frame in enumerate(
+                self.gene_frames(beg_idx, end_idx, interval)):
+            x, y, theta = frame
+            plt.plot(x, y, "o", ms=markersize)
+            plt.title("frame %d" % (interval * i))
+            plt.show()
+            plt.close()
 
 
 class CoarseGrainSnap(Snap):
@@ -204,43 +218,12 @@ def plot_contour(rho, vx, vy=None, ax=None, t=None):
 if __name__ == "__main__":
     """ Just for test. """
     import os
-    from scipy.ndimage import gaussian_filter
-    from smooth_filter import bilateral_filter, gauss_filter
-    # os.chdir(r"D:\code\VM\VM\coarse")
-    # file = r"cBbb_0.35_0_140_200_140_200_28000_1.08_13.bin"
-    # snap = CoarseGrainSnap(file)
-    # frames = snap.gene_frames(90, 100)
-    # for i, frame in enumerate(frames):
-    #     rho = frame[3]
-    #     vx = frame[4]
-    #     plot_coarse_grained_snap(rho, vx, frame[0])
-
     os.chdir(r"D:\tmp")
-    file = r'so_0.35_0_220_600_132000_2000_1234.bin'
+    Lx = 150
+    Ly = 50
+    N = Lx * Ly
+    dt = 50000
+    seed = 1
+    file = r'so_0.35_0_%d_%d_%d_%d_%d.bin' % (Lx, Ly, N, dt, seed)
     snap = RawSnap(file)
-    for i, frame in enumerate(snap.gene_frames(300, 301)):
-        x, y, theta = frame
-        rho, vx, vy = coarse_grain(x, y, theta)
-
-        rho_c = 1.5
-        plt.subplot(131)
-        rho0 = rho.copy()
-        # rho0[rho0 < rho_c] = 0
-        plt.imshow(
-            rho0, interpolation="none", vmax=4, origin="lower", cmap="jet")
-        # plt.colorbar()
-        plt.subplot(132)
-        rho1 = gaussian_filter(rho, sigma=[1.0, 0.8], mode="wrap")
-        # rho1[rho1 < rho_c] = 0
-        plt.imshow(
-            rho1, interpolation="none", vmax=4, origin="lower", cmap="jet")
-        # plt.colorbar()
-        plt.subplot(133)
-        rho2 = bilateral_filter(rho, sigma_s=[1.0, 0.8], sigma_c=2.5)
-        # rho2 = gauss_filter(rho, sigma=[0.8, 0.8])
-        # rho2[rho2 < rho_c] = 0
-        plt.imshow(
-            rho2, interpolation="none", vmax=4, origin="lower", cmap="jet")
-        # plt.colorbar()
-        plt.show()
-        plt.close()
+    snap.show(interval=1)

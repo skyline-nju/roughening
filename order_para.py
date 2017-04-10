@@ -14,7 +14,7 @@ def read(file):
     return phi
 
 
-def get_phi_mean(Lxs, Lys, ncut=5000, eta=0.35, eps=0, rho=1, seed=1234):
+def get_phi_mean(Lxs, Lys, ncut=2000, eta=0.35, eps=0, rho=1, seed=1234):
     phi_mean = np.zeros((len(Lxs), len(Lys)))
     for i, Lx in enumerate(Lxs):
         for j, Ly in enumerate(Lys):
@@ -27,13 +27,15 @@ def get_phi_mean(Lxs, Lys, ncut=5000, eta=0.35, eps=0, rho=1, seed=1234):
 if __name__ == "__main__":
     os.chdir("data/phi")
 
-    Lxs = [160, 180, 200, 220]
-    Lys = [200, 300, 400, 500, 600, 700]
+    Lxs = [150, 160, 180, 200, 220]
+    Lys = [200, 300, 400, 500, 600, 700, 800, 900, 1000]
 
     phi = get_phi_mean(Lxs, Lys)
     plt.subplot(121)
     for i, Lx in enumerate(Lxs):
         plt.plot(Lys, phi[i], "-o", label=r"$L_x=%d$" % Lx)
+    # plt.xscale("log")
+    # plt.yscale("log")
     plt.legend(loc="best")
 
     plt.subplot(122)
