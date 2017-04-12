@@ -136,7 +136,14 @@ class CoarseGrainSnap(Snap):
         return frame
 
 
-def coarse_grain(x, y, theta=None, Lx=None, Ly=None, ncols=None, nrows=None):
+def coarse_grain(x,
+                 y,
+                 theta=None,
+                 Lx=None,
+                 Ly=None,
+                 ncols=None,
+                 nrows=None,
+                 norm=True):
     """ Coarse grain the raw snapshot over boxes with size (lx, ly)
 
         Parameters:
@@ -165,7 +172,6 @@ def coarse_grain(x, y, theta=None, Lx=None, Ly=None, ncols=None, nrows=None):
         ncols = Lx
     if nrows is None:
         nrows = Ly
-    print(Lx, Ly, ncols, nrows)
     ncols_over_Lx = ncols / Lx
     nrows_over_Ly = nrows / Ly
 
@@ -192,13 +198,42 @@ def coarse_grain(x, y, theta=None, Lx=None, Ly=None, ncols=None, nrows=None):
         mask = rho > 0
         vx[mask] /= rho[mask]
         vy[mask] /= rho[mask]
-        rho = rho / cell_area
-        vx /= cell_area
-        vy /= cell_area
+        if norm:
+            rho = rho / cell_area
+            vx /= cell_area
+            vy /= cell_area
         return rho, vx, vy
     else:
-        rho = rho / cell_area
+        if norm:
+            rho = rho / cell_area
         return rho
+
+
+def coarse_grain2(x, y, theta, Lx=None, Ly=None, ncols=None, nrows=None):
+    if Lx is None:
+        Lx = int(np.round(x.max()))
+    if Ly is None:
+        Ly = int(np.round(y.max()))
+    if ncols is None:
+        ncols = Lx
+    if nrows is None:
+        nrows = Ly
+    ncols_over_Lx = ncols / Lx
+    nrows_over_Ly = nrows / Ly
+    vx = np.cos(theta)
+
+    num = np.zeros((nrows, ncols), int)
+    n = x.size
+    for i in range(n):
+        col = int(x[i] * ncols_over_Lx)
+        if col >= ncols:
+            col = ncols-1
+        row = int(y[i] * nrows_over_Ly)
+        if row >= nrows:
+            row = nrows - 1
+        if (vx[i] > 0):
+            num[row, col] += 1
+    return num
 
 
 def plot_contour(rho, vx, vy=None, ax=None, t=None):
