@@ -6,9 +6,13 @@
 
 import numpy as np
 import numpy.matlib as npmat
-import matplotlib.pyplot as plt
 from scipy.ndimage.filters import gaussian_filter, laplace
 from scipy.interpolate import splev, splrep
+import platform
+import matplotlib
+import sys
+if platform.system() is not "Windows":
+    matplotlib.use("Agg")
 
 
 def get_inverse_mat(alpha, beta, gamma, n):
@@ -85,18 +89,18 @@ def untangle(x, L):
     phase = 0
     for i in range(1, x.size):
         dx = x[i] - x[i - 1]
-        if dx > Lx * 0.5:
-            phase -= Lx
-        elif dx < -Lx * 0.5:
-            phase += Lx
+        if dx > L * 0.5:
+            phase -= L
+        elif dx < -L * 0.5:
+            phase += L
         x_new[i] = x[i] + phase
     return x_new
 
 
-def find_max_slope(rho_x):
+def find_half_rho(rho_x):
     idx_beg = np.argmax(rho_x)
     idx = idx_beg
-    rho_small = 0.35
+    rho_small = 0.4
     while True:
         if rho_x[idx % rho_x.size] < rho_small:
             break
@@ -106,22 +110,44 @@ def find_max_slope(rho_x):
             idx = idx_beg
             rho_small += 0.05
 
-    x0 = np.linspace(idx_beg+0.5, idx-0.5, idx-idx_beg)
-    y0 = rho_x[idx_beg: idx]
-    spl = splrep(x0, y0)
+    x0 = np.linspace(idx_beg + 0.5, idx - 0.5, idx - idx_beg)
+    if idx < rho_x.size:
+        rho0 = rho_x[idx_beg:idx]
+    else:
+        rho0 = np.array([rho_x[i % rho_x.size] for i in range(idx_beg, idx)])
+    spl = splrep(x0, rho0)
     xi = np.linspace(x0[0], x0[-1], 100)
-    yi = splev(xi, spl)
-    yi2 = splev(xi, spl, der=1)
-    idx_min = np.argmin(yi2)
-    return xi[idx_min], yi[idx_min]
+    rhoi = splev(xi, spl)
+    rhom = rho_x[idx_beg] / 2
+    for i in range(xi.size - 1, 0, -1):
+        if rhoi[i] < rhom and rhoi[i - 1] > rhom:
+            return xi[i], rhoi[i]
+
+
+def find_interface_by_half_rho(rho, sigma):
+    rho_s = gaussian_filter(rho, sigma=sigma, mode="wrap")
+    x = np.zeros(rho_s.shape[0])
+    rho_t = np.zeros_like(x)
+    for i, rhox in enumerate(rho_s):
+        try:
+            x[i], rho_t[i] = find_half_rho(rhox)
+            # if i > 0 and abs(x[i] - x[i - 1]) > 10:
+            #     plt.plot(rhox, "-o", rho_s[i - 1], "-s")
+            #     plt.show()
+            #     plt.close()
+        except:
+            plt.plot(rhox)
+            plt.show()
+            plt.close()
+    return x, rho_t
 
 
 def ini_snake(rho, rho_t, mode="line", dx=10):
     def find_x(rho_x, rho_t, x_pre=None):
         if x_pre is None:
-            idx_beg = rho_x.size - 1
+            idx_beg = np.argmax(rho_x) + 40
         else:
-            idx_beg = int(x_pre) + ncols // 4
+            idx_beg = int(x_pre) + 40
         idx_end = idx_beg - ncols
         for i in range(idx_beg, idx_end, -1):
             r1 = rho_x[(i - 1) % ncols]
@@ -130,8 +156,6 @@ def ini_snake(rho, rho_t, mode="line", dx=10):
                 x_t = (rho_t - r1) / (r2 - r1) + i - 1
                 plt.plot(rho_x)
                 plt.plot(x_t, rho_t, "o")
-                x0, rho0 = find_max_slope(rho_x)
-                plt.plot(x0, rho0, "s")
                 plt.show()
                 plt.close()
                 return x_t
@@ -140,20 +164,28 @@ def ini_snake(rho, rho_t, mode="line", dx=10):
     y = np.linspace(0.5, rho.shape[0] - 0.5, rho.shape[0])
     if mode == "line":
         rho_x = np.mean(rho, axis=0)
-        x = np.ones(rho.shape[0]) * find_x(rho_x, rho_t) + dx
+        x = np.ones(rho.shape[0]) * find_x(rho_x, rho_t.mean()) + dx
     elif mode == "spline":
         dy = 50
         x0 = np.zeros(nrows // dy + 1)
         y0 = np.zeros_like(x0)
 
         rho_x = np.mean(rho, axis=0)
-        xm = find_x(rho_x, rho_t)
+        if isinstance(rho_t, np.ndarray):
+            rho_tm = np.mean(rho_t)
+        else:
+            rho_tm = rho_t
+        xm = find_x(rho_x, rho_tm)
         for i in range(x0.size - 1):
             rho_x = np.mean(rho[i * dy:(i + 1) * dy, :], axis=0)
-            if i == 0:
-                x0[i] = find_x(rho_x, rho_t, x_pre=xm)
+            if isinstance(rho_t, np.ndarray):
+                rho_tm = np.mean(rho_t[i * dy:(i + 1) * dy])
             else:
-                x0[i] = find_x(rho_x, rho_t, x_pre=x0[i - 1])
+                rho_tm = rho_t
+            if i == 0:
+                x0[i] = find_x(rho_x, rho_tm, x_pre=xm)
+            else:
+                x0[i] = find_x(rho_x, rho_tm, x_pre=x0[i - 1])
             y0[i] = dy / 2 + i * dy
         x0 += dx
         x0[-1] = x0[0]
@@ -180,15 +212,22 @@ def find_interface(rho,
                    gamma=0.25,
                    count=500,
                    rho_t=2,
-                   dx=10):
+                   dx=5):
     nrows, ncols = rho.shape
     Ly = nrows
     Lx = ncols
-    x, y = ini_snake(rho, rho_t, dx=dx, mode="spline")
+    if Ly <= 150:
+        mode = "line"
+    else:
+        mode = "spline"
+    x, y = ini_snake(rho, rho_t, dx=dx, mode=mode)
     invP = get_inverse_mat(alpha, beta, gamma, nrows)
     idx_ymin = 0
     y_res = set_residual_y(idx_ymin, Ly, nrows, alpha, beta)
-    drho = rho - rho_t
+    if not isinstance(rho_t, np.ndarray):
+        drho = rho - rho_t
+    else:
+        drho = np.array([rho[i] - rho_t[i] for i in range(rho_t.size)])
     for i in range(count):
         X = np.floor(x).astype(int) % ncols
         Y = np.floor(y).astype(int)
@@ -235,34 +274,68 @@ def original_snake(x, y, img, alpha, beta, gamma=0.25, count=500):
     return x, y
 
 
-if __name__ == "__main__":
-    import os
-    import load_snap
-    os.chdir(r"D:\tmp")
-    Lx = 220
-    Ly = 800
-    snap = load_snap.RawSnap(r"so_0.35_0.02_%d_%d_%d_2000_1234.bin" %
-                             (Lx, Ly, Lx * Ly))
-    width = []
-    for i, frame in enumerate(snap.gene_frames(188, 189)):
+def test(eta,
+         eps,
+         Lx,
+         Ly,
+         dt,
+         seed,
+         show=True,
+         output=False,
+         t_beg=0,
+         t_end=None):
+    if platform.system() is not "Windows":
+        os.chdir(r"snap_one")
+    else:
+        os.chdir(r"D:\tmp")
+    snap = load_snap.RawSnap(r"so_%g_%g_%d_%d_%d_%d_%d.bin" %
+                             (eta, eps, Lx, Ly, Lx * Ly, dt, seed))
+    width1 = []
+    width2 = []
+    for i, frame in enumerate(snap.gene_frames(t_beg, t_end)):
         x, y, theta = frame
         num = load_snap.coarse_grain2(
             x, y, theta, Lx=Lx, Ly=Ly, ncols=Lx, nrows=Ly)
-        rho = gaussian_filter(num * 1.0, sigma=[1, 1])
-
-        rho[rho > 6] = 6
-        xl, yl = find_interface(rho, alpha=5, rho_t=1.5, dx=5)
-        spl = splrep(yl, xl)
-        yi = np.linspace(0.5, Ly - 0.5, Ly)
-        xi = untangle(splev(yi, spl), Lx)
-        w = np.var(xi)
-        width.append(w)
-        print(i, w)
-        plt.scatter(y, x, c=theta, s=0.5, cmap="hsv")
-        plt.plot(yl, xl)
-        plt.title(r"$w^2=%g$" % w)
+        rho = num * 1.0
+        xl, rho_t = find_interface_by_half_rho(rho, sigma=[15, 1])
+        rho_s = gaussian_filter(rho, sigma=[1, 1], mode="wrap")
+        xl2, yl2 = find_interface(rho_s, alpha=1, rho_t=rho_t)
+        rho_s[rho_s > 4] = 4
+        xl = untangle(xl, Lx)
+        xl2 = untangle(xl2, Lx)
+        yl = np.linspace(0, Ly - 0.5, Ly)
+        plt.imshow(rho_s.T, origin="lower", interpolation="none")
+        plt.plot(yl, xl, yl2, xl2)
         plt.show()
         plt.close()
+        w1 = np.var(xl)
+        w2 = np.var(xl2)
+        print(i, w1, w2)
+        width1.append(w1)
+        width2.append(w2)
+        plt.plot(y, x, "o", ms=1)
+        plt.show()
+        plt.close()
+    if show:
+        plt.subplot(211)
+        plt.plot(width1)
+        plt.subplot(212)
+        plt.plot(width2)
+        plt.show()
+        plt.close()
+    if output:
+        lines = [
+            "%d\t%f\t%f\n" % ((i + 1 + t_beg) * 2000, width1[i], width2[i])
+            for i in range(len(width1))
+        ]
+        file = r"w_%g_%g_%d_%d_%d_%d_%d.dat" % (eta, eps, Lx, Ly, Lx * Ly, dt,
+                                                seed)
+        with open(file, "w") as f:
+            f.writelines(lines)
 
-    plt.plot(width, "-o")
-    plt.show()
+
+if __name__ == "__main__":
+    import os
+    import matplotlib.pyplot as plt
+    import load_snap
+    test(0.35, 0, 150, 150, 2000, 1234, False, False, 844, 845)
