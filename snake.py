@@ -10,7 +10,6 @@ from scipy.ndimage.filters import gaussian_filter, laplace
 from scipy.interpolate import splev, splrep
 import platform
 import matplotlib
-import sys
 if platform.system() is not "Windows":
     matplotlib.use("Agg")
 
@@ -97,49 +96,8 @@ def untangle(x, L):
     return x_new
 
 
-def find_half_rho(rho_x):
-    idx_beg = np.argmax(rho_x)
-    idx = idx_beg
-    rho_small = 0.4
-    while True:
-        if rho_x[idx % rho_x.size] < rho_small:
-            break
-        else:
-            idx += 1
-        if idx > idx_beg + rho_x.size // 2:
-            idx = idx_beg
-            rho_small += 0.05
-
-    x0 = np.linspace(idx_beg + 0.5, idx - 0.5, idx - idx_beg)
-    if idx < rho_x.size:
-        rho0 = rho_x[idx_beg:idx]
-    else:
-        rho0 = np.array([rho_x[i % rho_x.size] for i in range(idx_beg, idx)])
-    spl = splrep(x0, rho0)
-    xi = np.linspace(x0[0], x0[-1], 100)
-    rhoi = splev(xi, spl)
-    rhom = rho_x[idx_beg] / 2
-    for i in range(xi.size - 1, 0, -1):
-        if rhoi[i] < rhom and rhoi[i - 1] > rhom:
-            return xi[i], rhoi[i]
-
-
-def find_interface_by_half_rho(rho, sigma):
-    rho_s = gaussian_filter(rho, sigma=sigma, mode="wrap")
-    x = np.zeros(rho_s.shape[0])
-    rho_t = np.zeros_like(x)
-    for i, rhox in enumerate(rho_s):
-        try:
-            x[i], rho_t[i] = find_half_rho(rhox)
-            # if i > 0 and abs(x[i] - x[i - 1]) > 10:
-            #     plt.plot(rhox, "-o", rho_s[i - 1], "-s")
-            #     plt.show()
-            #     plt.close()
-        except:
-            plt.plot(rhox)
-            plt.show()
-            plt.close()
-    return x, rho_t
+def ini(rho, rho_h, mode="line", dx=5):
+    pass
 
 
 def ini_snake(rho, rho_t, mode="line", dx=10):
@@ -297,7 +255,7 @@ def test(eta,
         num = load_snap.coarse_grain2(
             x, y, theta, Lx=Lx, Ly=Ly, ncols=Lx, nrows=Ly)
         rho = num * 1.0
-        xl, rho_t = find_interface_by_half_rho(rho, sigma=[15, 1])
+        xl, rho_t = half_rho.find_interface(rho, sigma=[15, 1])
         rho_s = gaussian_filter(rho, sigma=[1, 1], mode="wrap")
         xl2, yl2 = find_interface(rho_s, alpha=1, rho_t=rho_t)
         rho_s[rho_s > 4] = 4
@@ -314,6 +272,9 @@ def test(eta,
         width1.append(w1)
         width2.append(w2)
         plt.plot(y, x, "o", ms=1)
+        plt.show()
+        plt.close()
+        plt.plot(rho_t)
         plt.show()
         plt.close()
     if show:
@@ -338,4 +299,29 @@ if __name__ == "__main__":
     import os
     import matplotlib.pyplot as plt
     import load_snap
-    test(0.35, 0, 150, 150, 2000, 1234, False, False, 844, 845)
+    import half_rho
+    # test(0.35, 0, 150, 150, 2000, 1234, False, False, 215, 216)
+    if platform.system() is not "Windows":
+        os.chdir(r"snap_one")
+    else:
+        os.chdir(r"D:\tmp")
+    Lx = 150
+    Ly = 150
+    snap = load_snap.RawSnap(r"so_%g_%g_%d_%d_%d_%d_%d.bin" %
+                             (0.35, 0, Lx, Ly, Lx * Ly, 2000, 1234))
+    width = []
+    debug = True
+    t_beg = 224
+    t_end = None
+    for i, frame in enumerate(snap.gene_frames(t_beg, t_end)):
+        x, y, theta = frame
+        rho = load_snap.coarse_grain2(
+            x, y, theta, Lx=Lx, Ly=Ly, ncols=Lx, nrows=Ly) * 1.0
+        xh, rho_h = half_rho.find_interface(rho, sigma=[15, 1], debug=debug)
+        yh = np.linspace(0.5, Ly - 0.5, Ly)
+
+        w = np.var(untangle(xh, Lx))
+        width.append(w)
+        print(i + t_beg, w)
+    plt.plot(width)
+    plt.show()
