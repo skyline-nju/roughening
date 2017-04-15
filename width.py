@@ -31,7 +31,7 @@ def filtering(t0, w0, max_dw=100):
 
 
 if __name__ == "__main__":
-    Lx = 150
+    Lx = 180
     Lys = [
         150, 200, 250, 300, 350, 400, 450, 500, 550, 600, 700, 800, 900, 1000
     ]
@@ -56,8 +56,8 @@ if __name__ == "__main__":
             plt.show()
             plt.close()
     # plt.subplot(121)
-    plt.loglog(Lys, w1m, "-o")
+    plt.plot(Lys, w1m, "-o")
     # plt.subplot(122)
-    plt.loglog(Lys, w2m, "-s")
+    plt.plot(Lys, w2m, "-s")
     plt.show()
     plt.close()

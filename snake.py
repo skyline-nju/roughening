@@ -306,18 +306,22 @@ if __name__ == "__main__":
     else:
         os.chdir(r"D:\tmp")
     Lx = 150
-    Ly = 150
+    Ly = 250
     snap = load_snap.RawSnap(r"so_%g_%g_%d_%d_%d_%d_%d.bin" %
                              (0.35, 0, Lx, Ly, Lx * Ly, 2000, 1234))
     width = []
     debug = True
-    t_beg = 224
-    t_end = None
+    t_beg = 97
+    t_end = 98
     for i, frame in enumerate(snap.gene_frames(t_beg, t_end)):
         x, y, theta = frame
+        if debug:
+            plt.plot(y, x, "o", ms="1")
+            plt.show()
+            plt.close()
         rho = load_snap.coarse_grain2(
             x, y, theta, Lx=Lx, Ly=Ly, ncols=Lx, nrows=Ly) * 1.0
-        xh, rho_h = half_rho.find_interface(rho, sigma=[15, 1], debug=debug)
+        xh, rho_h = half_rho.find_interface(rho, sigma=[5, 1], debug=debug)
         yh = np.linspace(0.5, Ly - 0.5, Ly)
 
         w = np.var(untangle(xh, Lx))
@@ -325,3 +329,6 @@ if __name__ == "__main__":
         print(i + t_beg, w)
     plt.plot(width)
     plt.show()
+    plt.close()
+
+    print("mean width = %g" % (sum(width) / len(width)))
