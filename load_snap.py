@@ -347,9 +347,9 @@ def show_separated_snaps(Lx,
 
 if __name__ == "__main__":
     """ Just for test. """
-    os.chdir("D:\\tmp")
-    file = "cB_0.35_0.02_220_25600_220_25600_5632000_1.06_1234.bin"
-    snap = CoarseGrainSnap(file)
-    print(snap.get_num_frames())
-    snap.show(ly=10)
-    # show_separated_snaps(220, 100, 123, 100000, 1000000, 100000, 0.35, 0.02)
+    # os.chdir("D:\\tmp")
+    # file = "cB_0.35_0_180_25600_180_25600_4608000_1.06_1235.bin"
+    # snap = CoarseGrainSnap(file)
+    # print(snap.get_num_frames())
+    # snap.show(ly=10)
+    show_separated_snaps(180, 100, 123, 100000, 1000000, 100000, 0.35, 0)

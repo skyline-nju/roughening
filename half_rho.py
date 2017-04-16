@@ -10,6 +10,9 @@ from scipy.ndimage import gaussian_filter
 
 if platform.system() is not "Windows":
     matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+else:
+    import matplotlib.pyplot as plt
 
 
 def untangle(x, L):
@@ -33,7 +36,6 @@ def find_idx_max(rho_x, pre_idx_max, idx_range=20, mode=0):
         ])
         return np.argmax(tmp) + i_beg
 
-    import matplotlib.pyplot as plt
     n = rho_x.size
     i_beg = pre_idx_max - idx_range
     i_end = pre_idx_max + idx_range
@@ -161,11 +163,11 @@ def find_rho_half(rho_x,
     if debug:
         import matplotlib.pyplot as plt
         plt.plot(rho_x)
-        # plt.axvline(xh)
-        plt.axhline(rho_h)
+        plt.axhline(rho_h, c="r", linestyle="--")
         plt.axvline(idx_max, c="k")
-        plt.axvline(xh_pre, c="r")
-        plt.axhline(rho_h_pre, c="r")
+        plt.axvline(xh, c="r")
+        plt.axvline(xh_pre, c="b")
+        plt.axhline(rho_h_pre, c="b", linestyle="--")
         plt.show()
         plt.close()
 
@@ -176,7 +178,6 @@ def find_rho_half(rho_x,
 
 
 def find_interface(rho, sigma, debug=False):
-    import matplotlib.pyplot as plt
     rho_s = gaussian_filter(rho, sigma=sigma, mode="wrap")
     nrows = rho_s.shape[0]
     xh = np.zeros(nrows)
@@ -216,7 +217,7 @@ def find_interface(rho, sigma, debug=False):
 
         if debug:
             print("row = ", row)
-        if debug and row > 200:
+        if debug and row > 1950:
             is_debug = True
         else:
             is_debug = False
@@ -229,7 +230,8 @@ def find_interface(rho, sigma, debug=False):
         idx_max_pre = idx_max
 
     if debug:
-        plt.imshow(rho_s.T, origin="lower", interpolation="none")
+        mask = rho_s > 1
+        plt.imshow(mask.T, origin="lower", interpolation="none")
         yh = np.linspace(0.5, nrows - 0.5, nrows)
         plt.plot(yh, xh, "k")
         plt.show()
