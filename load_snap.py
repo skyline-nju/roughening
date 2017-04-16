@@ -20,6 +20,7 @@
     --------
         struct.error: unpack requires a bytes object of length 24
 """
+import os
 import sys
 import struct
 import numpy as np
@@ -70,6 +71,9 @@ class Snap:
                 self.f.seek(self.frame_size, 1)
             count += 1
 
+    def get_num_frames(self):
+        return self.file_size // self.frame_size
+
 
 class RawSnap(Snap):
     def __init__(self, file):
@@ -114,6 +118,9 @@ class CoarseGrainSnap(Snap):
         elif self.snap_format == "iff":
             self.fmt = "%di%df" % (self.N, 2 * self.N)
             self.snap_size = self.N * 3 * 4
+        elif self.snap_format == "B":
+            self.fmt = "%dB" % (self.N)
+            self.snap_size = self.N
         self.frame_size = self.snap_size + 20
         self.open_file(file)
 
@@ -124,16 +131,72 @@ class CoarseGrainSnap(Snap):
         vxm, vym = struct.unpack("dd", buff)
         buff = self.f.read(self.snap_size)
         data = struct.unpack(self.fmt, buff)
-        num = np.array(data[:self.N], int).reshape(self.nrows, self.ncols)
-        vx = np.array(data[self.N:2 * self.N], float).reshape(self.nrows,
-                                                              self.ncols)
-        vy = np.array(data[2 * self.N:3 * self.N], float).reshape(self.nrows,
+        if self.snap_format == "B":
+            num = np.array(data, int).reshape(self.nrows, self.ncols)
+            frame = [t, vxm, vym, num]
+        else:
+            num = np.array(data[:self.N], int).reshape(self.nrows, self.ncols)
+            vx = np.array(data[self.N:2 * self.N], float).reshape(self.nrows,
                                                                   self.ncols)
-        if self.snap_format == "Bbb":
-            vx /= 128
-            vy /= 128
-        frame = [t, vxm, vym, num, vx, vy]
+            vy = np.array(data[2 * self.N:3 * self.N], float).reshape(
+                self.nrows, self.ncols)
+            if self.snap_format == "Bbb":
+                vx /= 128
+                vy /= 128
+            frame = [t, vxm, vym, num, vx, vy]
         return frame
+
+    def show(self,
+             beg_idx=0,
+             end_idx=None,
+             interval=1,
+             lx=1,
+             ly=1,
+             transpos=True):
+        from half_rho import find_interface, untangle
+        for i, frame in enumerate(
+                self.gene_frames(beg_idx, end_idx, interval)):
+            t, vxm, vym, num = frame
+            rho = num.astype(np.float32)
+            yh = np.linspace(0.5, self.nrows - 0.5, self.nrows)
+            xh, rho_h = find_interface(num.astype(float), sigma=[15, 1])
+            w = np.var(untangle(xh, self.ncols))
+            if ly > 1:
+                rho = np.array([
+                    np.mean(num[i * ly:(i + 1) * ly], axis=0)
+                    for i in range(self.nrows // ly)
+                ])
+                if lx > 1:
+                    rho = np.array([
+                        np.mean(rho[:, i * lx:(i + 1) * lx], axis=1)
+                        for i in range(self.ncols // lx)
+                    ])
+
+            if transpos:
+                rho = rho.T
+                box = [0, self.nrows, 0, self.ncols]
+                xh, yh = yh, xh
+                plt.figure(figsize=(14, 3))
+                plt.xlabel(r"$y$")
+                plt.ylabel(r"$x$")
+            else:
+                box = [0, self.ncols, 0, self.nrows]
+                plt.figure(figsize=(4, 12))
+                plt.xlabel(r"$x$")
+                plt.ylabel(r"$y$")
+            plt.imshow(
+                rho,
+                origin="lower",
+                interpolation="none",
+                extent=box,
+                aspect="auto")
+            plt.plot(xh, yh, "k")
+            plt.title(r"$t=%d, \phi=%g, w^2=%g$" %
+                      (t, np.sqrt(vxm**2 + vym**2), w))
+            plt.tight_layout()
+            plt.show()
+            plt.close()
+            print("%d\t%f\t%f" % (t, np.sqrt(vxm**2 + vym**2), w))
 
 
 def coarse_grain(x,
@@ -225,40 +288,68 @@ def coarse_grain2(x, y, theta, Lx=None, Ly=None, ncols=None, nrows=None):
     num = np.zeros((nrows, ncols), int)
     n = x.size
     for i in range(n):
-        col = int(x[i] * ncols_over_Lx)
-        if col >= ncols:
-            col = ncols-1
-        row = int(y[i] * nrows_over_Ly)
-        if row >= nrows:
-            row = nrows - 1
-        if (vx[i] > 0):
+        if vx[i] > 0:
+            col = int(x[i] * ncols_over_Lx)
+            if col >= ncols:
+                col = ncols - 1
+            row = int(y[i] * nrows_over_Ly)
+            if row >= nrows:
+                row = nrows - 1
             num[row, col] += 1
     return num
 
 
-def plot_contour(rho, vx, vy=None, ax=None, t=None):
-    plt.subplot(121)
-    rho[rho > 4] = 4
-    plt.contour(rho, vmax=4, level=[0, 1, 2, 3, 4], extend="max")
-    plt.colorbar()
-    plt.subplot(122)
-    plt.contourf(vx)
-    plt.colorbar()
-    if t is not None:
-        plt.suptitle(r"$t=%d$" % t)
-    plt.show()
-    plt.close()
+def show_separated_snaps(Lx,
+                         Ly,
+                         seed,
+                         t_beg,
+                         t_end,
+                         dt=None,
+                         eta=0.35,
+                         eps=0,
+                         rho0=1,
+                         transpos=False,
+                         sigma=[15, 1]):
+    from half_rho import find_interface, untangle
+    os.chdir(r"D:\tmp")
+    if dt is None:
+        dt = t_beg
+    t = t_beg
+    while t <= t_end:
+        file = r's_%g_%g_%g_%d_%d_%d_%08d.bin' % (eta, eps, rho0, Lx, Ly, seed,
+                                                  t)
+        snap = RawSnap(file)
+        for frame in snap.gene_frames():
+            x, y, theta = frame
+            phi = np.sqrt(
+                np.mean(np.cos(theta))**2 + np.mean(np.sin(theta))**2)
+            rho = coarse_grain2(x, y, theta, Lx=Lx, Ly=Ly).astype(float)
+            yh = np.linspace(0.5, Ly - 0.5, Ly)
+            xh, rho_h = find_interface(rho, sigma=sigma)
+            w = np.var(untangle(xh, Lx))
+            print("t=%d, phi=%f, w=%f" % (t, phi, w))
+            if transpos:
+                x, y = y, x
+                xh, yh = yh, xh
+                plt.xlim(0, Ly)
+                plt.ylim(0, Lx)
+            else:
+                plt.xlim(0, Lx)
+                plt.ylim(0, Ly)
+            plt.scatter(x, y, s=1, c=theta, cmap="hsv")
+            plt.plot(xh, yh)
+            plt.title(r"$t=%d, \phi=%g, w^2=%g$" % (t, phi, w))
+            plt.colorbar()
+            plt.show()
+            plt.close()
+        t += dt
 
 
 if __name__ == "__main__":
     """ Just for test. """
-    import os
-    os.chdir(r"D:\tmp")
-    Lx = 150
-    Ly = 50
-    N = Lx * Ly
-    dt = 50000
-    seed = 1
-    file = r'so_0.35_0_%d_%d_%d_%d_%d.bin' % (Lx, Ly, N, dt, seed)
-    snap = RawSnap(file)
-    snap.show(interval=1)
+    os.chdir("D:\\tmp")
+    file = "cB_0.35_0.02_220_25600_220_25600_5632000_1.06_1234.bin"
+    snap = CoarseGrainSnap(file)
+    print(snap.get_num_frames())
+    snap.show(ly=10)
+    # show_separated_snaps(220, 100, 123, 100000, 1000000, 100000, 0.35, 0.02)

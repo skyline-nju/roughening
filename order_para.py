@@ -47,12 +47,12 @@ def phi_vs_Lx_and_Ly():
     plt.close()
 
 
-def moving_average(phi: np.ndarray, window: int = 500):
+def moving_average(phi: np.ndarray, window: int=500):
     t = []
     phi_mean = []
     for i in range(phi.size - window):
         t.append((window // 2 + i) * 100)
-        phi_mean.append(phi[i: i + window].mean())
+        phi_mean.append(phi[i:i + window].mean())
     plt.subplot(211)
     plt.plot(t, phi_mean)
     plt.subplot(212)
@@ -71,4 +71,3 @@ if __name__ == "__main__":
     plt.close()
     moving_average(phi)
     # phi_vs_Lx_and_Ly()
-
