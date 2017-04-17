@@ -311,7 +311,6 @@ def show_separated_snaps(Lx,
                          transpos=False,
                          sigma=[15, 1]):
     from half_rho import find_interface, untangle
-    os.chdir(r"D:\tmp")
     if dt is None:
         dt = t_beg
     t = t_beg
@@ -328,6 +327,7 @@ def show_separated_snaps(Lx,
             xh, rho_h = find_interface(rho, sigma=sigma)
             w = np.var(untangle(xh, Lx))
             print("t=%d, phi=%f, w=%f" % (t, phi, w))
+            plt.subplot(121)
             if transpos:
                 x, y = y, x
                 xh, yh = yh, xh
@@ -340,6 +340,8 @@ def show_separated_snaps(Lx,
             plt.plot(xh, yh)
             plt.title(r"$t=%d, \phi=%g, w^2=%g$" % (t, phi, w))
             plt.colorbar()
+            plt.subplot(122)
+            plt.plot(rho.mean(axis=0))
             plt.show()
             plt.close()
         t += dt
@@ -347,9 +349,10 @@ def show_separated_snaps(Lx,
 
 if __name__ == "__main__":
     """ Just for test. """
+    os.chdir(r"D:\code\VM\VM\snap")
     # os.chdir("D:\\tmp")
     # file = "cB_0.35_0_180_25600_180_25600_4608000_1.06_1235.bin"
     # snap = CoarseGrainSnap(file)
     # print(snap.get_num_frames())
     # snap.show(ly=10)
-    show_separated_snaps(180, 100, 123, 100000, 1000000, 100000, 0.35, 0)
+    show_separated_snaps(220, 200, 312, 500000, 1000000, 10000, 0.35, 0.02)
