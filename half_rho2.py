@@ -18,6 +18,8 @@ else:
 
 
 def find_ini_row(rho, debug=0, rho_h_thresh=2):
+    """ Need improve. """
+
     valid_row = []
     valid_dx = []
     valid_idx_h = []
@@ -25,6 +27,7 @@ def find_ini_row(rho, debug=0, rho_h_thresh=2):
     for row, rho_x in enumerate(rho):
         rho_h = 0.5 * rho_x.max()
         if rho_h >= rho_h_thresh:
+            rho_h = rho_h_thresh
             count = 0
             idx_h = None
             for i in range(rho_x.size):
@@ -90,6 +93,7 @@ def find_ini_row(rho, debug=0, rho_h_thresh=2):
     if debug > 0:
         plt.plot(rho[start_row])
         plt.axvline(start_idx_h)
+        plt.axhline(rho_h_thresh)
         plt.title("start row = %d" % start_row)
         plt.show()
         plt.close()
@@ -105,27 +109,17 @@ def cal_dis(i, j, n):
     return dx
 
 
-def detect_peak(y,
-                i0,
-                max_step=None,
-                leftward=True,
-                y_thresh=None,
-                dy_thresh=0.5):
+def detect_left_peak(y, i0, relative_height):
     n = y.size
+    ymax = y.max()
     peak = []
     vally = []
-    if leftward:
-        i = i0
-        di = -1
-    else:
-        i = (i0 + 2) % n
-        di = 1
-    count = 0
+    i = i0
     while True:
         if y[i - 1] > y[i] and y[i - 1] > y[i - 2]:
             peak.append(i - 1)
             if len(peak) == 2 and len(vally) >= 1:
-                if y[peak[0]] - y[vally[-1]] > y[peak[1]] - y[vally[-1]]:
+                if y[peak[0]] > y[peak[1]]:
                     del peak[1]
                 else:
                     del peak[0]
@@ -133,51 +127,74 @@ def detect_peak(y,
         elif y[i - 1] < y[i] and y[i - 1] < y[i - 2]:
             vally.append(i - 1)
             if len(peak) == 1:
-                if leftward:
-                    dy = y[peak[0]] - y[vally[-1]]
-                    dx = cal_dis(peak[0], vally[-1], n)
-                    if dx >= 4 or dy >= dy_thresh:
-                        break
-                else:
-                    dx1 = cal_dis(vally[-1], peak[0], n)
-                    if dx1 >= 4 and y[peak[0]] >= y_thresh:
-                        if len(vally) == 2:
-                            dy = y[peak[0]] - y[vally[0]]
-                            dx2 = cal_dis(peak[0], vally[0], n)
-                            if y[vally[0]] > 0.5 * y_thresh and \
-                                    (dx2 >= 4 or dy > dy_thresh):
-                                break
-                            elif y[vally[0]] > 0.75 * y_thresh and \
-                                    (dx2 >= 4 or dy > 0.5 * dy_thresh):
-                                break
-                        else:
-                            break
+                dy = y[peak[0]] - y[vally[-1]]
+                dx = cal_dis(peak[0], vally[-1], n)
+                if (dx >= 4 or dy >= relative_height) and \
+                        y[peak[0]] > 0.33 * ymax:
+                    break
             elif len(peak) > 1:
-                print("Error when detect peak")
+                print("Error when detect left peak")
                 sys.exit()
-        i += di
+        i -= 1
         i = i % n
-        count += 1
-        if max_step is not None and count > max_step:
+    return peak[0]
+
+
+def detect_right_peak(y, i0, vally_thresh, relative_height, max_step=40):
+    n = y.size
+    ymax = y.max()
+    peak = []
+    vally = []
+    i = i0
+    iter_count = 0
+    while True:
+        if y[i - 1] > y[i] and y[i - 1] > y[i - 2]:
+            peak.append(i - 1)
+            if len(peak) == 1 and len(vally) == 0:
+                j = i - 2
+                while True:
+                    if y[j] < y[(j + 1) % n] and y[j] < [j - 1]:
+                        vally.append(j)
+                        break
+                    else:
+                        j -= 1
+                        j = j % n
+            elif len(peak) == 2 and len(vally) == 2:
+                if y[peak[0]] > y[peak[1]]:
+                    del peak[1]
+                else:
+                    del peak[0]
+                if y[vally[0]] > y[vally[1]]:
+                    del vally[0]
+                else:
+                    del vally[1]
+        elif y[i - 1] < y[i] and y[i - 1] < y[i - 2]:
+            vally.append(i - 1)
+            if len(peak) == 1:
+                dx_left = cal_dis(peak[0], vally[0], n)
+                dx_right = cal_dis(vally[1], peak[0], n)
+                dy_left = y[peak[0]] - y[vally[0]]
+                if dx_right > 4 and y[vally[0]] > vally_thresh and \
+                        (dx_left > 4 or dy_left > relative_height) and \
+                        peak[0] > 0.33 * ymax:
+                    break
+            elif len(peak) > 1:
+                print("Error when dectect left peak")
+                sys.exit()
+        i += 1
+        i = i % n
+        iter_count += 1
+        if iter_count >= max_step:
             return None
     return peak[0]
 
 
-def get_next_idx_h(rho_x, idx_h_pre, debug=False):
+def get_next_idx_h(rho_x, idx_h_pre, rho_h_pre=None, debug=False):
     n = rho_x.size
-    drho_thresh = 0.5
-    idx_peak = detect_peak(rho_x, idx_h_pre, dy_thresh=drho_thresh)
+    idx_peak = detect_right_peak(rho_x, idx_h_pre, rho_h_pre * 0.5, 0.5)
+    if idx_peak is None:
+        idx_peak = detect_left_peak(rho_x, idx_h_pre, 0.5)
     rho_h = rho_x[idx_peak] * 0.5
-    idx_peak2 = detect_peak(
-        rho_x,
-        idx_h_pre,
-        y_thresh=rho_h,
-        dy_thresh=drho_thresh,
-        max_step=40,
-        leftward=False)
-    if idx_peak2 is not None:
-        idx_peak = idx_peak2
-        rho_h = rho_x[idx_peak] * 0.5
     i = (idx_peak + 1) % n
     while True:
         if rho_x[i] <= rho_h <= rho_x[i - 1]:
@@ -211,12 +228,13 @@ def iteration(rho, row0, idx_h0, left=True, debug=0):
         drow = -1
     for row in row_range:
         row = row % nrows
-        if debug and row > 1000:
+        if debug > 1 and row < 160:
             flag = True
         else:
             flag = False
+        row_pre = (row-drow) % nrows
         idx_h[row], rho_h[row] = get_next_idx_h(
-            rho[row], idx_h[(row - drow) % nrows], debug=flag)
+            rho[row], idx_h[row_pre], rho_h[row_pre], debug=flag)
         if debug:
             print("row = ", row)
     return idx_h, rho_h
@@ -234,7 +252,6 @@ def get_xh(rho, idx_h, rho_h):
 
 
 def find_interface(rho, sigma, debug=0, leftward=False):
-    # smooth the density filed
     rho_s = gaussian_filter(rho, sigma=sigma, mode="wrap")
     start_row, start_idx_h = find_ini_row(rho_s, debug=debug)
     idx_h, rho_h = iteration(
@@ -252,17 +269,20 @@ if __name__ == "__main__":
     Ly = 250
     snap = load_snap.RawSnap(r"so_%g_%g_%d_%d_%d_%d_%d.bin" %
                              (0.35, 0, Lx, Ly, Lx * Ly, 2000, 1234))
-    debug = 0
-    t_beg = 2000
-    t_end = 2500
+    debug = 1
+    t_beg = 793
+    t_end = 794
     w1 = []
     w2 = []
     for i, frame in enumerate(snap.gene_frames(t_beg, t_end)):
         x, y, theta = frame
         rho = load_snap.coarse_grain2(x, y, theta, Lx=Lx, Ly=Ly).astype(float)
-        xh, rho_h = find_interface(rho, sigma=[10, 1], debug=debug)
-        xh1, rho_h1 = find_interface(rho, sigma=[10, 1], leftward=True)
-        xh2, rho_h2 = half_rho.find_interface(rho, sigma=[10, 1])
+        xh, rho_h = find_interface(rho, sigma=[5, 1], debug=debug)
+        xh1, rho_h1 = find_interface(rho, sigma=[5, 1], leftward=True)
+        xh2, rho_h2 = half_rho.find_interface(rho, sigma=[5, 1])
+        xh = half_rho.untangle(xh, Lx)
+        xh1 = half_rho.untangle(xh1, Lx)
+        xh2 = half_rho.untangle(xh2, Lx)
         yh = np.linspace(0, Ly - 1, Ly)
         print(i)
         if debug > 0:
@@ -273,8 +293,8 @@ if __name__ == "__main__":
             plt.plot(yh, xh2, "r")
             plt.show()
             plt.close()
-        w1.append(np.var(half_rho.untangle(xh, Lx)))
-        w2.append(np.var(half_rho.untangle(xh2, Lx)))
+        w1.append(np.var(xh))
+        w2.append(np.var(xh2))
     plt.plot(w1)
     plt.plot(w2)
     plt.show()
