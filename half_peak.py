@@ -17,89 +17,6 @@ else:
     import matplotlib.pyplot as plt
 
 
-def find_ini_row(rho, debug=0, rho_h_thresh=2):
-    """ Need improve. """
-
-    valid_row = []
-    valid_dx = []
-    valid_idx_h = []
-    possible_row = []
-    for row, rho_x in enumerate(rho):
-        rho_h = 0.5 * rho_x.max()
-        if rho_h >= rho_h_thresh:
-            rho_h = rho_h_thresh
-            count = 0
-            idx_h = None
-            for i in range(rho_x.size):
-                if rho_x[i - 1] >= rho_h >= rho_x[i]:
-                    count += 1
-                    idx_h = i
-            if count == 1:
-                idx_m = np.argmax(rho_x)
-                if idx_h < idx_m:
-                    idx_h += rho_x.size
-                is_decreasing = True
-                i = (idx_m + 1) % rho_x.size
-                while rho_x[i] > 0.5 * rho_h:
-                    if rho_x[i] - rho_x[i - 1] > 0:
-                        is_decreasing = False
-                        break
-                    else:
-                        i += 1
-                        if i >= rho_x.size:
-                            i -= rho_x.size
-                if is_decreasing:
-                    valid_row.append(row)
-                    valid_idx_h.append(idx_h % rho_x.size)
-                    if idx_h > idx_m:
-                        valid_dx.append(idx_h - idx_m)
-                    else:
-                        valid_dx.append(idx_h + rho_x.size - idx_m)
-                else:
-                    possible_row.append(row)
-    if len(valid_row) == 0:
-        for row in possible_row:
-            rho_x = rho[row]
-            idx_m = np.argmax(rho_x)
-            i = idx_m + 1
-            iter_count = 0
-            idx_peak = None
-            while iter_count < 50:
-                if rho_x[(i-1) % rho_x.size] > rho_x[i % rho_x.size] and \
-                        rho_x[(i-1) % rho_x.size] > rho_x[(i+1) % rho_x.size]:
-                    idx_peak = i - 1
-                    break
-            if idx_peak is not None:
-                rho_h = rho_x[idx_peak]
-                is_decreasing = True
-                while rho_x[i] > 0.5 * rho_h:
-                    if rho_x[i] - rho_x[i - 1] > 0:
-                        is_decreasing = False
-                        break
-                    else:
-                        i += 1
-                        i = i % rho_x.size
-                    if is_decreasing:
-                        valid_row.append(row)
-                        valid_idx_h.append(idx_h % rho_x.size)
-                        if idx_h > idx_m:
-                            valid_dx.append(idx_h - idx_m)
-                        else:
-                            valid_dx.append(idx_h + rho_x.size - idx_m)
-    if len(valid_dx) > 0:
-        idx_min = np.array(valid_dx).argmin()
-        start_row = valid_row[idx_min]
-        start_idx_h = valid_idx_h[idx_min]
-    if debug > 0:
-        plt.plot(rho[start_row])
-        plt.axvline(start_idx_h)
-        plt.axhline(rho_h_thresh)
-        plt.title("start row = %d" % start_row)
-        plt.show()
-        plt.close()
-    return start_row, start_idx_h
-
-
 def cal_dis(i, j, n):
     dx = i - j
     if dx > 0.5 * n:
@@ -189,20 +106,63 @@ def detect_right_peak(y, i0, vally_thresh, relative_height, max_step=40):
     return peak[0]
 
 
+def find_first_row(rho, debug=0):
+    for row, rho_x in enumerate(rho):
+        rho_h = 0.5 * rho_x.max()
+        count = 0
+        for i in range(rho_x.size):
+            if rho_x[i - 1] >= rho_h >= rho_x[i]:
+                count += 1
+                idx_h = i
+        if count == 1:
+            idx_peak = detect_right_peak(
+                rho_x,
+                idx_h,
+                vally_thresh=0.2,
+                relative_height=0.1,
+                max_step=50)
+            if idx_peak is None:
+                idx_peak = detect_left_peak(rho_x, idx_h, 0.5)
+                if rho_x[idx_peak] >= 4:
+                    return row, idx_peak
+
+
+def get_idx_nearest(y, i_beg, y0):
+    """ Get the index of first member smaller than y0.
+
+        Parameters:
+        --------
+        y: np.ndarray
+            A decreasing array.
+        i_beg: int
+            Starting index.
+        y0: float
+            Targeted value of y.
+
+        Returns:
+        --------
+        i0: int
+            Index where y[i0-1] >= y0 >= y[i0]
+
+    """
+    i = (i_beg + 1) % y.size
+    while True:
+        if y[i - 1] >= y0 >= y[i]:
+            i0 = i
+            break
+        else:
+            i += 1
+            if i >= y.size:
+                i -= y.size
+    return i0
+
+
 def get_next_idx_h(rho_x, idx_h_pre, rho_h_pre=None, debug=False):
-    n = rho_x.size
     idx_peak = detect_right_peak(rho_x, idx_h_pre, rho_h_pre * 0.5, 0.5)
     if idx_peak is None:
         idx_peak = detect_left_peak(rho_x, idx_h_pre, 0.5)
     rho_h = rho_x[idx_peak] * 0.5
-    i = (idx_peak + 1) % n
-    while True:
-        if rho_x[i] <= rho_h <= rho_x[i - 1]:
-            idx_h = i
-            break
-        else:
-            i += 1
-            i = i % n
+    idx_h = get_idx_nearest(rho_x, idx_peak, rho_h)
     if debug:
         plt.plot(rho_x)
         plt.axvline(idx_peak, c="g")
@@ -232,7 +192,7 @@ def iteration(rho, row0, idx_h0, left=True, debug=0):
             flag = True
         else:
             flag = False
-        row_pre = (row-drow) % nrows
+        row_pre = (row - drow) % nrows
         idx_h[row], rho_h[row] = get_next_idx_h(
             rho[row], idx_h[row_pre], rho_h[row_pre], debug=flag)
         if debug:
@@ -253,7 +213,18 @@ def get_xh(rho, idx_h, rho_h):
 
 def find_interface(rho, sigma, debug=0, leftward=False):
     rho_s = gaussian_filter(rho, sigma=sigma, mode="wrap")
-    start_row, start_idx_h = find_ini_row(rho_s, debug=debug)
+    # start_row, start_idx_h = find_ini_row(rho_s, debug=debug)
+    start_row, idx_peak = find_first_row(rho_s)
+    if idx_peak is not None:
+        start_idx_h = get_idx_nearest(rho_s[start_row], idx_peak,
+                                      rho_s[start_row, idx_peak] * 0.5)
+    if debug:
+        plt.plot(rho_s[start_row])
+        plt.axvline(start_idx_h)
+        plt.axvline(idx_peak)
+        plt.axhline(rho_s[start_row, idx_peak] * 0.5)
+        plt.show()
+        plt.close()
     idx_h, rho_h = iteration(
         rho_s, start_row, start_idx_h, left=leftward, debug=debug)
     xh = get_xh(rho_s, idx_h, rho_h)
@@ -270,8 +241,8 @@ if __name__ == "__main__":
     snap = load_snap.RawSnap(r"so_%g_%g_%d_%d_%d_%d_%d.bin" %
                              (0.35, 0, Lx, Ly, Lx * Ly, 2000, 1234))
     debug = 1
-    t_beg = 793
-    t_end = 794
+    t_beg = 2268
+    t_end = 2269
     w1 = []
     w2 = []
     for i, frame in enumerate(snap.gene_frames(t_beg, t_end)):
