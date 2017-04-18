@@ -18,12 +18,39 @@ else:
 
 
 def cal_dis(i, j, n):
+    """ Cal Distance between i, j under the periodic boundary condition. """
     dx = i - j
     if dx > 0.5 * n:
         dx -= n
     elif dx < -0.5 * n:
         dx += n
     return dx
+
+
+def get_xh(rho, idx_h, rho_h):
+    """ Cal x where rho=rho_h by linear interpolation. """
+    xh = np.zeros_like(rho_h)
+    for row, rhox in enumerate(rho):
+        i = idx_h[row]
+        rhoh = rho_h[row]
+        rho1 = rhox[i - 1]
+        rho2 = rhox[i]
+        xh[row] = i - 0.5 + (rho1 - rhoh) / (rho1 - rho2)
+    return xh
+
+
+def get_idx_nearest(y, i_beg, y0):
+    """ Get the index i0 (>i_beg) where y[i0-1] >= y0 >= y[i0]. """
+    i = (i_beg + 1) % y.size
+    while True:
+        if y[i - 1] >= y0 >= y[i]:
+            i0 = i
+            break
+        else:
+            i += 1
+            if i >= y.size:
+                i -= y.size
+    return i0
 
 
 def detect_left_peak(y, i0, relative_height):
@@ -77,13 +104,14 @@ def detect_right_peak(y, i0, vally_thresh, relative_height, max_step=40):
                         j -= 1
                         j = j % n
             elif len(peak) == 2 and len(vally) == 2:
-                if y[peak[0]] > y[peak[1]]:
-                    del peak[1]
-                else:
-                    del peak[0]
                 if y[vally[0]] > y[vally[1]]:
+                    del peak[0]
                     del vally[0]
                 else:
+                    if y[peak[0]] > y[peak[1]]:
+                        del peak[1]
+                    else:
+                        del peak[0]
                     del vally[1]
         elif y[i - 1] < y[i] and y[i - 1] < y[i - 2]:
             vally.append(i - 1)
@@ -127,36 +155,6 @@ def find_first_row(rho, debug=0):
                     return row, idx_peak
 
 
-def get_idx_nearest(y, i_beg, y0):
-    """ Get the index of first member smaller than y0.
-
-        Parameters:
-        --------
-        y: np.ndarray
-            A decreasing array.
-        i_beg: int
-            Starting index.
-        y0: float
-            Targeted value of y.
-
-        Returns:
-        --------
-        i0: int
-            Index where y[i0-1] >= y0 >= y[i0]
-
-    """
-    i = (i_beg + 1) % y.size
-    while True:
-        if y[i - 1] >= y0 >= y[i]:
-            i0 = i
-            break
-        else:
-            i += 1
-            if i >= y.size:
-                i -= y.size
-    return i0
-
-
 def get_next_idx_h(rho_x, idx_h_pre, rho_h_pre=None, debug=False):
     idx_peak = detect_right_peak(rho_x, idx_h_pre, rho_h_pre * 0.5, 0.5)
     if idx_peak is None:
@@ -188,7 +186,7 @@ def iteration(rho, row0, idx_h0, left=True, debug=0):
         drow = -1
     for row in row_range:
         row = row % nrows
-        if debug > 1 and row < 160:
+        if debug > 1 and 60 < row < 100:
             flag = True
         else:
             flag = False
@@ -198,17 +196,6 @@ def iteration(rho, row0, idx_h0, left=True, debug=0):
         if debug:
             print("row = ", row)
     return idx_h, rho_h
-
-
-def get_xh(rho, idx_h, rho_h):
-    xh = np.zeros_like(rho_h)
-    for row, rhox in enumerate(rho):
-        i = idx_h[row]
-        rhoh = rho_h[row]
-        rho1 = rhox[i - 1]
-        rho2 = rhox[i]
-        xh[row] = i - 0.5 + (rho1 - rhoh) / (rho1 - rho2)
-    return xh
 
 
 def find_interface(rho, sigma, debug=0, leftward=False):
@@ -231,6 +218,155 @@ def find_interface(rho, sigma, debug=0, leftward=False):
     return xh, rho_h
 
 
+class Node:
+    def __init__(
+            self, idx_h, rho_h, start_row, length=0, lchild=None, rchild=None):
+        self.rho_h = [rho_h]
+        self.col_list = [idx_h]
+        self.start_row = start_row
+        self.length = length
+        self.lchild = lchild
+        self.rchild = rchild
+
+    def add_child(self, node):
+        if self.lchild is None:
+            self.lchild = node
+        elif self.rchild is None:
+            self.rchild = node
+        else:
+            print("cannot add child!")
+            sys.exit()
+
+    def has_no_child(self):
+        return self.lchild is None and self.rchild is None
+
+    def enlongate(self, rho_x, debug=0):
+        dh = 0.5  # threshold value for relative height between vally and peak
+        idx_h_pre = self.col_list[-1]
+        v_min = 0.5 * self.rho_h[-1]  # min height of valley
+        idx_p1 = detect_left_peak(rho_x, idx_h_pre, dh)
+        rho_h1 = rho_x[idx_p1] * 0.5
+        idx_h1 = get_idx_nearest(rho_x, idx_p1, rho_h1)
+        dx1 = cal_dis(idx_h1, idx_h_pre, rho_x.size)
+        idx_p2 = detect_right_peak(rho_x, idx_h_pre, v_min, dh)
+        if idx_p2 is None:
+            self.rho_h.append(rho_h1)
+            self.col_list.append(idx_h1)
+            self.length += dx1**2
+        else:
+            rho_h2 = rho_x[idx_p2] * 0.5
+            idx_h2 = get_idx_nearest(rho_x, idx_p2, rho_h2)
+            dx2 = cal_dis(idx_h2, idx_h_pre, rho_x.size)
+            start_row = self.start_row + len(self.col_list)
+            node1 = Node(idx_h1, rho_h1, start_row, dx1**2)
+            node2 = Node(idx_h2, rho_h2, start_row, dx2**2)
+            self.lchild = node1
+            self.rchild = node2
+
+    def merge(self):
+        if self.lchild.length <= self.rchild.length:
+            self.col_list.extend(self.lchild.col_list)
+            self.rho_h.extend(self.lchild.rho_h)
+            self.length += self.lchild.length
+        else:
+            self.col_list.extend(self.rchild.col_list)
+            self.rho_h.extend(self.rchild.rho_h)
+            self.length += self.rchild.length
+        self.lchild = None
+        self.rchild = None
+
+
+class Tree:
+    def __init__(self, rho, sigma):
+        self.rho = gaussian_filter(rho, sigma=sigma, mode="wrap")
+        start_row, idx_peak = find_first_row(self.rho)
+        if idx_peak is not None:
+            start_idx_h = get_idx_nearest(self.rho[start_row], idx_peak,
+                                          self.rho[start_row, idx_peak] * 0.5)
+            rho_h = self.rho[start_row, idx_peak] * 0.5
+            self.root = Node(start_idx_h, rho_h, start_row)
+            self.start_row = start_row
+
+    def grow(self, node, rho_x):
+        if node is None:
+            return
+        self.grow(node.lchild, rho_x)
+        self.grow(node.rchild, rho_x)
+        if node.has_no_child():
+            node.enlongate(rho_x)
+
+    def merge_close_loop(self, node):
+        if node is None:
+            return
+        self.merge_close_loop(node.lchild)
+        self.merge_close_loop(node.rchild)
+        if node.lchild is not None and node.lchild.has_no_child() and \
+                node.rchild is not None and node.rchild.has_no_child() and \
+                node.lchild.col_list[-1] == node.rchild.col_list[-1]:
+            node.merge()
+
+    def get_depth(self, node):
+        if node is None:
+            return 0
+        max_left = self.get_depth(node.lchild)
+        max_right = self.get_depth(node.rchild)
+        return max(max_left, max_right) + 1
+
+    def get_node_count(self, node):
+        if node is None:
+            return 0
+        n_left = self.get_depth(node.lchild)
+        n_right = self.get_depth(node.rchild)
+        return n_left + n_right + 1
+
+    def show(self):
+        def traverse(node, ax):
+            if node is None:
+                return
+            else:
+                x = node.col_list
+                y = np.arange(len(x)) + node.start_row
+                y[y > nrows] -= nrows
+                ax.plot(y, x, "o")
+            traverse(node.lchild, ax)
+            traverse(node.rchild, ax)
+        nrows = self.rho.shape[0]
+        ax = plt.subplot()
+        traverse(self.root, ax)
+        plt.imshow(self.rho.T, interpolation="none", origin="lower")
+        plt.show()
+        plt.close()
+
+    def iteration(self):
+        nrows = self.rho.shape[0]
+        depth0 = 0
+        count0 = 0
+        for row in range(self.start_row + 1, self.start_row + nrows):
+            row = row % nrows
+            self.grow(self.root, self.rho[row])
+            # self.merge_close_loop(self.root)
+            depth = self.get_depth(self.root)
+            count = self.get_node_count(self.root)
+            if depth0 != depth or count0 != count:
+                depth0, count0 = depth, count
+                print(row, depth, count)
+        # print("BTree: ", len(self.root.col_list))
+        self.show()
+
+        print(depth0, count0)
+        n = len(self.root.col_list)
+        if n == nrows:
+            idx_h = np.zeros(n, int)
+            rho_h = np.zeros(idx_h.size)
+            for row, col in enumerate(self.root.col_list):
+                i = (row + self.start_row) % nrows
+                idx_h[i] = col
+                rho_h[i] = self.root.rho_h[row]
+            xh = get_xh(self.rho, idx_h, rho_h)
+        return xh
+        # return xh
+
+
 if __name__ == "__main__":
     import os
     import load_snap
@@ -241,31 +377,40 @@ if __name__ == "__main__":
     snap = load_snap.RawSnap(r"so_%g_%g_%d_%d_%d_%d_%d.bin" %
                              (0.35, 0, Lx, Ly, Lx * Ly, 2000, 1234))
     debug = 1
-    t_beg = 2268
-    t_end = 2269
+    t_beg = 2409
+    t_end = 2410
     w1 = []
     w2 = []
+    w3 = []
     for i, frame in enumerate(snap.gene_frames(t_beg, t_end)):
         x, y, theta = frame
         rho = load_snap.coarse_grain2(x, y, theta, Lx=Lx, Ly=Ly).astype(float)
         xh, rho_h = find_interface(rho, sigma=[5, 1], debug=debug)
-        xh1, rho_h1 = find_interface(rho, sigma=[5, 1], leftward=True)
+        # xh1, rho_h1 = find_interface(rho, sigma=[5, 1], leftward=True)
         xh2, rho_h2 = half_rho.find_interface(rho, sigma=[5, 1])
         xh = half_rho.untangle(xh, Lx)
-        xh1 = half_rho.untangle(xh1, Lx)
+        # xh1 = half_rho.untangle(xh1, Lx)
         xh2 = half_rho.untangle(xh2, Lx)
         yh = np.linspace(0, Ly - 1, Ly)
+        bt = Tree(rho, sigma=[5, 1])
+        xh3 = bt.iteration()
+        xh3 = half_rho.untangle(xh3, Lx)
+
         print(i)
         if debug > 0:
             rho[rho > 4] = 4
             plt.imshow(rho.T, interpolation="none", origin="lower")
             plt.plot(yh, xh, "k")
-            plt.plot(yh, xh1, "w--")
+            # plt.plot(yh, xh1, "w--")
             plt.plot(yh, xh2, "r")
+            # plt.plot(yh, xh3, "g")
             plt.show()
             plt.close()
         w1.append(np.var(xh))
         w2.append(np.var(xh2))
-    plt.plot(w1)
-    plt.plot(w2)
+        w3.append(np.var(xh3))
+    plt.plot(w1, label="1")
+    plt.plot(w2, label="2")
+    plt.plot(w3, label="3")
+    plt.legend()
     plt.show()
