@@ -1,6 +1,6 @@
 """ Detect the interface of band.
 
-    Coarse grain the density field with gaussian fileter. For each y, calculate
+    Coarse grain the density field with gaussian filter. For each y, calculate
     x_h at which rho_x is equal to half of the leftmost peak.
 """
 
@@ -218,155 +218,6 @@ def find_interface(rho, sigma, debug=0, leftward=False):
     return xh, rho_h
 
 
-class Node:
-    def __init__(
-            self, idx_h, rho_h, start_row, length=0, lchild=None, rchild=None):
-        self.rho_h = [rho_h]
-        self.col_list = [idx_h]
-        self.start_row = start_row
-        self.length = length
-        self.lchild = lchild
-        self.rchild = rchild
-
-    def add_child(self, node):
-        if self.lchild is None:
-            self.lchild = node
-        elif self.rchild is None:
-            self.rchild = node
-        else:
-            print("cannot add child!")
-            sys.exit()
-
-    def has_no_child(self):
-        return self.lchild is None and self.rchild is None
-
-    def enlongate(self, rho_x, debug=0):
-        dh = 0.5  # threshold value for relative height between vally and peak
-        idx_h_pre = self.col_list[-1]
-        v_min = 0.5 * self.rho_h[-1]  # min height of valley
-        idx_p1 = detect_left_peak(rho_x, idx_h_pre, dh)
-        rho_h1 = rho_x[idx_p1] * 0.5
-        idx_h1 = get_idx_nearest(rho_x, idx_p1, rho_h1)
-        dx1 = cal_dis(idx_h1, idx_h_pre, rho_x.size)
-        idx_p2 = detect_right_peak(rho_x, idx_h_pre, v_min, dh)
-        if idx_p2 is None:
-            self.rho_h.append(rho_h1)
-            self.col_list.append(idx_h1)
-            self.length += dx1**2
-        else:
-            rho_h2 = rho_x[idx_p2] * 0.5
-            idx_h2 = get_idx_nearest(rho_x, idx_p2, rho_h2)
-            dx2 = cal_dis(idx_h2, idx_h_pre, rho_x.size)
-            start_row = self.start_row + len(self.col_list)
-            node1 = Node(idx_h1, rho_h1, start_row, dx1**2)
-            node2 = Node(idx_h2, rho_h2, start_row, dx2**2)
-            self.lchild = node1
-            self.rchild = node2
-
-    def merge(self):
-        if self.lchild.length <= self.rchild.length:
-            self.col_list.extend(self.lchild.col_list)
-            self.rho_h.extend(self.lchild.rho_h)
-            self.length += self.lchild.length
-        else:
-            self.col_list.extend(self.rchild.col_list)
-            self.rho_h.extend(self.rchild.rho_h)
-            self.length += self.rchild.length
-        self.lchild = None
-        self.rchild = None
-
-
-class Tree:
-    def __init__(self, rho, sigma):
-        self.rho = gaussian_filter(rho, sigma=sigma, mode="wrap")
-        start_row, idx_peak = find_first_row(self.rho)
-        if idx_peak is not None:
-            start_idx_h = get_idx_nearest(self.rho[start_row], idx_peak,
-                                          self.rho[start_row, idx_peak] * 0.5)
-            rho_h = self.rho[start_row, idx_peak] * 0.5
-            self.root = Node(start_idx_h, rho_h, start_row)
-            self.start_row = start_row
-
-    def grow(self, node, rho_x):
-        if node is None:
-            return
-        self.grow(node.lchild, rho_x)
-        self.grow(node.rchild, rho_x)
-        if node.has_no_child():
-            node.enlongate(rho_x)
-
-    def merge_close_loop(self, node):
-        if node is None:
-            return
-        self.merge_close_loop(node.lchild)
-        self.merge_close_loop(node.rchild)
-        if node.lchild is not None and node.lchild.has_no_child() and \
-                node.rchild is not None and node.rchild.has_no_child() and \
-                node.lchild.col_list[-1] == node.rchild.col_list[-1]:
-            node.merge()
-
-    def get_depth(self, node):
-        if node is None:
-            return 0
-        max_left = self.get_depth(node.lchild)
-        max_right = self.get_depth(node.rchild)
-        return max(max_left, max_right) + 1
-
-    def get_node_count(self, node):
-        if node is None:
-            return 0
-        n_left = self.get_depth(node.lchild)
-        n_right = self.get_depth(node.rchild)
-        return n_left + n_right + 1
-
-    def show(self):
-        def traverse(node, ax):
-            if node is None:
-                return
-            else:
-                x = node.col_list
-                y = np.arange(len(x)) + node.start_row
-                y[y > nrows] -= nrows
-                ax.plot(y, x, "o")
-            traverse(node.lchild, ax)
-            traverse(node.rchild, ax)
-        nrows = self.rho.shape[0]
-        ax = plt.subplot()
-        traverse(self.root, ax)
-        plt.imshow(self.rho.T, interpolation="none", origin="lower")
-        plt.show()
-        plt.close()
-
-    def iteration(self):
-        nrows = self.rho.shape[0]
-        depth0 = 0
-        count0 = 0
-        for row in range(self.start_row + 1, self.start_row + nrows):
-            row = row % nrows
-            self.grow(self.root, self.rho[row])
-            # self.merge_close_loop(self.root)
-            depth = self.get_depth(self.root)
-            count = self.get_node_count(self.root)
-            if depth0 != depth or count0 != count:
-                depth0, count0 = depth, count
-                print(row, depth, count)
-        # print("BTree: ", len(self.root.col_list))
-        self.show()
-
-        print(depth0, count0)
-        n = len(self.root.col_list)
-        if n == nrows:
-            idx_h = np.zeros(n, int)
-            rho_h = np.zeros(idx_h.size)
-            for row, col in enumerate(self.root.col_list):
-                i = (row + self.start_row) % nrows
-                idx_h[i] = col
-                rho_h[i] = self.root.rho_h[row]
-            xh = get_xh(self.rho, idx_h, rho_h)
-        return xh
-        # return xh
-
-
 if __name__ == "__main__":
     import os
     import load_snap
@@ -377,11 +228,10 @@ if __name__ == "__main__":
     snap = load_snap.RawSnap(r"so_%g_%g_%d_%d_%d_%d_%d.bin" %
                              (0.35, 0, Lx, Ly, Lx * Ly, 2000, 1234))
     debug = 1
-    t_beg = 2409
-    t_end = 2410
+    t_beg = 2164
+    t_end = 2165
     w1 = []
     w2 = []
-    w3 = []
     for i, frame in enumerate(snap.gene_frames(t_beg, t_end)):
         x, y, theta = frame
         rho = load_snap.coarse_grain2(x, y, theta, Lx=Lx, Ly=Ly).astype(float)
@@ -392,9 +242,6 @@ if __name__ == "__main__":
         # xh1 = half_rho.untangle(xh1, Lx)
         xh2 = half_rho.untangle(xh2, Lx)
         yh = np.linspace(0, Ly - 1, Ly)
-        bt = Tree(rho, sigma=[5, 1])
-        xh3 = bt.iteration()
-        xh3 = half_rho.untangle(xh3, Lx)
 
         print(i)
         if debug > 0:
@@ -408,9 +255,7 @@ if __name__ == "__main__":
             plt.close()
         w1.append(np.var(xh))
         w2.append(np.var(xh2))
-        w3.append(np.var(xh3))
     plt.plot(w1, label="1")
     plt.plot(w2, label="2")
-    plt.plot(w3, label="3")
     plt.legend()
     plt.show()
