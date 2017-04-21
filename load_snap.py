@@ -6,7 +6,7 @@
     Coarse-grained snapshots record the count of number and mean velocity
     over cells with linear size (lx, ly). Types of num, vx, vy are int32,
     float32, float32 for "iff" and unsigned char, signed char, singed char
-    for "Bbb".Additional imformation such as time step, sum of vx and vy would
+    for "Bbb". Additional imformation such as time step, sum of vx and vy would
     be also saved in the file.
 
     FIND A BUG:
@@ -24,7 +24,15 @@ import os
 import sys
 import struct
 import numpy as np
-import matplotlib.pyplot as plt
+import platform
+import matplotlib
+from scipy.ndimage import gaussian_filter
+
+if platform.system() is not "Windows":
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+else:
+    import matplotlib.pyplot as plt
 
 
 class Snap:
@@ -111,6 +119,7 @@ class CoarseGrainSnap(Snap):
         self.ncols = int(str_list[5])
         self.nrows = int(str_list[6])
         self.N = self.ncols * self.nrows
+        self.file = file
         print(self.ncols, self.nrows)
         if self.snap_format == "Bbb":
             self.fmt = "%dB%db" % (self.N, 2 * self.N)
@@ -147,56 +156,72 @@ class CoarseGrainSnap(Snap):
         return frame
 
     def show(self,
-             beg_idx=0,
-             end_idx=None,
-             interval=1,
+             i_beg=0,
+             i_end=None,
+             di=1,
              lx=1,
              ly=1,
-             transpos=True):
-        from half_rho import find_interface, untangle
-        for i, frame in enumerate(
-                self.gene_frames(beg_idx, end_idx, interval)):
+             transpos=True,
+             sigma=[10, 1],
+             output=True,
+             show=True):
+        import half_rho
+        import half_peak
+        if output:
+            f = open(self.file.replace(".bin", "_%d.dat" % (sigma[0])), "w")
+        for i, frame in enumerate(self.gene_frames(i_beg, i_end, di)):
             t, vxm, vym, num = frame
             rho = num.astype(np.float32)
             yh = np.linspace(0.5, self.nrows - 0.5, self.nrows)
-            xh, rho_h = find_interface(num.astype(float), sigma=[15, 1])
-            w = np.var(untangle(xh, self.ncols))
-            if ly > 1:
-                rho = np.array([
-                    np.mean(num[i * ly:(i + 1) * ly], axis=0)
-                    for i in range(self.nrows // ly)
-                ])
+            xh1, rho_h1 = half_rho.find_interface(rho, sigma=sigma)
+            xh2, rho_h2 = half_peak.find_interface(rho, sigma=sigma)
+            xh1 = half_rho.untangle(xh1, self.ncols)
+            xh2 = half_rho.untangle(xh2, self.ncols)
+            w1 = np.var(xh1)
+            w2 = np.var(xh2)
+            if show:
+                if ly > 1:
+                    rho = np.array([
+                        np.mean(num[i * ly:(i + 1) * ly], axis=0)
+                        for i in range(self.nrows // ly)
+                    ])
                 if lx > 1:
                     rho = np.array([
                         np.mean(rho[:, i * lx:(i + 1) * lx], axis=1)
                         for i in range(self.ncols // lx)
                     ])
-
-            if transpos:
-                rho = rho.T
-                box = [0, self.nrows, 0, self.ncols]
-                xh, yh = yh, xh
-                plt.figure(figsize=(14, 3))
-                plt.xlabel(r"$y$")
-                plt.ylabel(r"$x$")
-            else:
-                box = [0, self.ncols, 0, self.nrows]
-                plt.figure(figsize=(4, 12))
-                plt.xlabel(r"$x$")
-                plt.ylabel(r"$y$")
-            plt.imshow(
-                rho,
-                origin="lower",
-                interpolation="none",
-                extent=box,
-                aspect="auto")
-            plt.plot(xh, yh, "k")
-            plt.title(r"$t=%d, \phi=%g, w^2=%g$" %
-                      (t, np.sqrt(vxm**2 + vym**2), w))
-            plt.tight_layout()
-            plt.show()
-            plt.close()
-            print("%d\t%f\t%f" % (t, np.sqrt(vxm**2 + vym**2), w))
+                if transpos:
+                    rho = rho.T
+                    box = [0, self.nrows, 0, self.ncols]
+                    plt.figure(figsize=(14, 3))
+                    plt.plot(yh, xh1, "k", yh, xh2, "r")
+                    plt.xlabel(r"$y$")
+                    plt.ylabel(r"$x$")
+                else:
+                    box = [0, self.ncols, 0, self.nrows]
+                    plt.figure(figsize=(4, 12))
+                    plt.plot(xh1, yh, "k", xh2, yh, "r")
+                    plt.xlabel(r"$x$")
+                    plt.ylabel(r"$y$")
+                rho = gaussian_filter(rho, sigma=sigma)
+                rho[rho > 4] = 4
+                plt.imshow(
+                    rho,
+                    origin="lower",
+                    interpolation="none",
+                    extent=box,
+                    aspect="auto")
+                plt.title(r"$t=%d, \phi=%g, w^2_1=%g, w^2_2=%g$" %
+                          (t, np.sqrt(vxm**2 + vym**2), w1, w2))
+                plt.tight_layout()
+                plt.show()
+                plt.close()
+            print(t, np.sqrt(vxm**2 + vym**2), w1, w2)
+            if output:
+                f.write("%d\t%f\t%f\t%f\n" %
+                        (t, np.sqrt(vxm**2 + vym**2), w1, w2))
+        if output:
+            f.close()
 
 
 def coarse_grain(x,
@@ -309,8 +334,9 @@ def show_separated_snaps(Lx,
                          eps=0,
                          rho0=1,
                          transpos=False,
-                         sigma=[15, 1]):
-    from half_rho import find_interface, untangle
+                         sigma=[5, 1]):
+    from half_peak import find_interface
+    from half_rho import untangle
     if dt is None:
         dt = t_beg
     t = t_beg
@@ -347,12 +373,24 @@ def show_separated_snaps(Lx,
         t += dt
 
 
+def handle_file():
+    import glob
+    os.chdir("coarse")
+    files = glob.glob("cB*.bin")
+    for file in files:
+        try:
+            snap = CoarseGrainSnap(file)
+            snap.show(show=False)
+        except:
+            print("error when handle ", file)
+
+
 if __name__ == "__main__":
     """ Just for test. """
-    os.chdir(r"D:\code\VM\VM\snap")
-    # os.chdir("D:\\tmp")
-    # file = "cB_0.35_0_180_25600_180_25600_4608000_1.06_1235.bin"
-    # snap = CoarseGrainSnap(file)
-    # print(snap.get_num_frames())
-    # snap.show(ly=10)
-    show_separated_snaps(220, 200, 312, 500000, 1000000, 10000, 0.35, 0.02)
+    # os.chdir(r"D:\code\VM\VM\snap")
+    # show_separated_snaps(220, 200, 312, 660000, 1000000, 10000, 0.35, 0.02)
+    os.chdir("D:\\tmp")
+    file = "cB_0.35_0_180_25600_180_25600_4608000_1.06_1240.bin"
+    snap = CoarseGrainSnap(file)
+    print(snap.get_num_frames())
+    snap.show(ly=1, show=False, sigma=[25, 1])

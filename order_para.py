@@ -56,7 +56,7 @@ def moving_average(phi: np.ndarray, window: int=500):
     plt.subplot(211)
     plt.plot(t, phi_mean)
     plt.subplot(212)
-    phi_gauss = gaussian_filter1d(phi, sigma=200)
+    phi_gauss = gaussian_filter1d(phi, sigma=20)
     plt.plot(phi_gauss)
     plt.show()
     plt.close()
@@ -64,10 +64,13 @@ def moving_average(phi: np.ndarray, window: int=500):
 
 if __name__ == "__main__":
     os.chdir("data/phi")
-    file = "p_0.35_0_1_220_1000_1234.dat"
-    phi = read(file)
-    plt.plot(phi)
+    Phi = []
+    for seed in [1234, 1235, 1236, 1237]:
+        file = "p_0.35_0.02_1_220_25600_%d.dat" % (seed)
+        phi = read(file)[1000:]
+        Phi.append(phi.mean())
+    plt.plot(Phi, "o")
     plt.show()
     plt.close()
-    moving_average(phi)
-    # phi_vs_Lx_and_Ly()
+    print(sum(Phi)/len(Phi))
+

@@ -100,7 +100,7 @@ def ini(rho, rho_h, mode="line", dx=5):
     pass
 
 
-def ini_snake(rho, rho_t, mode="line", dx=10):
+def ini_snake(rho, rho_t, mode="line", dx=5):
     def find_x(rho_x, rho_t, x_pre=None):
         if x_pre is None:
             idx_beg = np.argmax(rho_x) + 40
@@ -112,10 +112,10 @@ def ini_snake(rho, rho_t, mode="line", dx=10):
             r2 = rho_x[i % ncols]
             if r1 > rho_t >= r2:
                 x_t = (rho_t - r1) / (r2 - r1) + i - 1
-                plt.plot(rho_x)
-                plt.plot(x_t, rho_t, "o")
-                plt.show()
-                plt.close()
+                # plt.plot(rho_x)
+                # plt.plot(x_t, rho_t, "o")
+                # plt.show()
+                # plt.close()
                 return x_t
 
     nrows, ncols = rho.shape
@@ -300,35 +300,46 @@ if __name__ == "__main__":
     import matplotlib.pyplot as plt
     import load_snap
     import half_rho
+    import half_peak
     # test(0.35, 0, 150, 150, 2000, 1234, False, False, 215, 216)
     if platform.system() is not "Windows":
         os.chdir(r"snap_one")
     else:
         os.chdir(r"D:\tmp")
-    Lx = 150
-    Ly = 250
+    Lx = 180
+    Ly = 1000
     snap = load_snap.RawSnap(r"so_%g_%g_%d_%d_%d_%d_%d.bin" %
                              (0.35, 0, Lx, Ly, Lx * Ly, 2000, 1234))
-    width = []
+    width1 = []
+    width2 = []
     debug = True
-    t_beg = 97
-    t_end = 98
-    for i, frame in enumerate(snap.gene_frames(t_beg, t_end)):
+    t_beg = 0
+    t_end = None
+    for i, frame in enumerate(snap.gene_frames(t_beg, t_end, 100)):
         x, y, theta = frame
+        rho = load_snap.coarse_grain2(
+            x, y, theta, Lx=Lx, Ly=Ly, ncols=Lx, nrows=Ly).astype(float)
+        xh, rho_h = half_rho.find_interface(rho, sigma=[1, 1])
+        xh2, rho_h2 = half_peak.find_interface(rho, sigma=[1, 1])
+        rho_s = gaussian_filter(rho, sigma=[1, 1])
+        xh3, yh3 = find_interface(rho_s, 0.5, 0.1, 0.25, 500, rho_h2, dx=5)
+        yh = np.linspace(0.5, Ly - 0.5, Ly)
         if debug:
+            # plt.scatter(y, x, s=0.5, c=theta, cmap="hsv")
             plt.plot(y, x, "o", ms="1")
+            rho_s[rho_s > 5] = 5
+            # plt.imshow(rho_s.T, interpolation="none", origin="lower")
+            xh = untangle(xh, Lx)
+            xh2 = untangle(xh2, Lx)
+            xh3 = untangle(xh3, Lx)
+            plt.plot(yh, xh, "g")
+            plt.plot(yh, xh2, "r--")
+            plt.plot(yh3, xh3, "k:")
             plt.show()
             plt.close()
-        rho = load_snap.coarse_grain2(
-            x, y, theta, Lx=Lx, Ly=Ly, ncols=Lx, nrows=Ly) * 1.0
-        xh, rho_h = half_rho.find_interface(rho, sigma=[5, 1], debug=debug)
-        yh = np.linspace(0.5, Ly - 0.5, Ly)
-
-        w = np.var(untangle(xh, Lx))
-        width.append(w)
-        print(i + t_beg, w)
-    plt.plot(width)
-    plt.show()
-    plt.close()
-
-    print("mean width = %g" % (sum(width) / len(width)))
+        w1 = np.var(xh)
+        w2 = np.var(xh2)
+        w3 = np.var(xh3)
+        width1.append(w1)
+        width2.append(w2)
+        print(i + t_beg, w1, w2, w3)

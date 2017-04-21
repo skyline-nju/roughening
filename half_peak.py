@@ -60,7 +60,7 @@ def detect_left_peak(y, i0, relative_height):
     vally = []
     i = i0
     while True:
-        if y[i - 1] > y[i] and y[i - 1] > y[i - 2]:
+        if y[i - 1] >= y[i] and y[i - 1] > y[i - 2]:
             peak.append(i - 1)
             if len(peak) == 2 and len(vally) >= 1:
                 if y[peak[0]] > y[peak[1]]:
@@ -68,16 +68,31 @@ def detect_left_peak(y, i0, relative_height):
                 else:
                     del peak[0]
                 del vally[-1]
-        elif y[i - 1] < y[i] and y[i - 1] < y[i - 2]:
+        elif y[i - 1] < y[i] and y[i - 1] <= y[i - 2]:
             vally.append(i - 1)
             if len(peak) == 1:
                 dy = y[peak[0]] - y[vally[-1]]
                 dx = cal_dis(peak[0], vally[-1], n)
-                if (dx >= 4 or dy >= relative_height) and \
-                        y[peak[0]] > 0.33 * ymax:
+                # if (dx >= 4 or dy >= relative_height) and \
+                #         y[peak[0]] > 0.33 * ymax:
+                #     break
+                y_peak = y[peak[0]]
+                if y_peak > 3 and (dy > 0.2 * relative_height or dx >= 3):
                     break
+                elif y_peak > 2 and (dy > 0.4 * relative_height or dx >= 4):
+                    break
+                elif y_peak > 0.33 * ymax and (dy >= relative_height or
+                                               dx >= 4):
+                    break
+
             elif len(peak) > 1:
-                print("Error when detect left peak")
+                print("Error when detect left peak, peak = %d" % len(peak))
+                plt.plot(y)
+                plt.axvline(peak[0], c="r")
+                plt.axvline(peak[1], c="b")
+                plt.axvline(i0, c="k", linestyle="--")
+                plt.show()
+                plt.close()
                 sys.exit()
         i -= 1
         i = i % n
@@ -92,12 +107,12 @@ def detect_right_peak(y, i0, vally_thresh, relative_height, max_step=40):
     i = i0
     iter_count = 0
     while True:
-        if y[i - 1] > y[i] and y[i - 1] > y[i - 2]:
+        if y[i - 1] >= y[i] and y[i - 1] > y[i - 2]:
             peak.append(i - 1)
             if len(peak) == 1 and len(vally) == 0:
                 j = i - 2
                 while True:
-                    if y[j] < y[(j + 1) % n] and y[j] < [j - 1]:
+                    if y[j] < y[(j + 1) % n] and y[j] <= [j - 1]:
                         vally.append(j)
                         break
                     else:
@@ -113,18 +128,33 @@ def detect_right_peak(y, i0, vally_thresh, relative_height, max_step=40):
                     else:
                         del peak[0]
                     del vally[1]
-        elif y[i - 1] < y[i] and y[i - 1] < y[i - 2]:
+        elif y[i - 1] < y[i] and y[i - 1] <= y[i - 2]:
             vally.append(i - 1)
             if len(peak) == 1:
                 dx_left = cal_dis(peak[0], vally[0], n)
                 dx_right = cal_dis(vally[1], peak[0], n)
                 dy_left = y[peak[0]] - y[vally[0]]
-                if dx_right > 4 and y[vally[0]] > vally_thresh and \
-                        (dx_left > 4 or dy_left > relative_height) and \
-                        peak[0] > 0.33 * ymax:
-                    break
+                if dx_right > 4 and y[vally[0]] > vally_thresh:
+                    y_peak = y[peak[0]]
+                    if y_peak > 3 and (dy_left > 0.2 * relative_height or
+                                       dx_left >= 3):
+                        break
+                    elif y_peak > 2 and (dy_left > 0.4 * relative_height or
+                                         dx_left >= 4):
+                        break
+                    elif y_peak > 0.33 * ymax and (dy_left > relative_height or
+                                                   dx_left >= 4):
+                        break
             elif len(peak) > 1:
-                print("Error when dectect left peak")
+                print("Error when dectect right peak, peak = %d" % (len(peak)))
+                plt.plot(y)
+                plt.axvline(peak[0], c="r")
+                plt.axvline(peak[1], c="b")
+                for v in vally:
+                    plt.axvline(v, c="g", linestyle="-.")
+                plt.axvline(i0, c="k", linestyle="--")
+                plt.show()
+                plt.close()
                 sys.exit()
         i += 1
         i = i % n
