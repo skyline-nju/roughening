@@ -22,6 +22,7 @@
 """
 import os
 import sys
+import glob
 import struct
 import numpy as np
 import platform
@@ -374,7 +375,6 @@ def show_separated_snaps(Lx,
 
 
 def handle_file():
-    import glob
     os.chdir("coarse")
     files = glob.glob("cB*.bin")
     for file in files:
@@ -385,12 +385,44 @@ def handle_file():
             print("error when handle ", file)
 
 
+def handle_raw_snap(file, sigma_y):
+    from half_rho import untangle
+    str_list = file.split("_")
+    Lx = int(str_list[3])
+    Ly = int(str_list[4])
+    sigma = [sigma_y, 1]
+    snap = load_snap.RawSnap(file)
+    n = snap.get_num_frames()
+    h1 = np.zeros((n, Ly), np.float32)
+    h2 = np.zeros((n, Ly), np.float32)
+    for i, frame in enumerate(snap.gene_frames()):
+        x, y, theta = frame
+        rho = load_snap.coarse_grain2(
+            x, y, theta, Lx=Lx, Ly=Ly, ncols=Lx, nrows=Ly).astype(float)
+        xh1, rho_h = half_peak.find_interface(rho, sigma=sigma)
+        rho_s = gaussian_filter(rho, sigma=sigma)
+        xh2, yh2 = snake.find_interface(
+            rho_s, 0.5, 0.1, 0.25, 400, rho_h, dx=5)
+        h1[i] = untangle(xh1, Lx)
+        h2[i] = untangle(xh2, Lx)
+        print("i=", i)
+    outfile = file.replace(".bin", "_%d.npz" % sigma_y)
+    np.savez(outfile, h1=h1, h2=h2)
+
+
 if __name__ == "__main__":
     """ Just for test. """
-    # os.chdir(r"D:\code\VM\VM\snap")
-    # show_separated_snaps(220, 200, 312, 660000, 1000000, 10000, 0.35, 0.02)
-    os.chdir("D:\\tmp")
-    file = "cB_0.35_0_180_25600_180_25600_4608000_1.06_1240.bin"
-    snap = CoarseGrainSnap(file)
-    print(snap.get_num_frames())
-    snap.show(ly=1, show=False, sigma=[25, 1])
+    import load_snap
+    import half_peak
+    import snake
+    os.chdir("snap_one")
+    eta = float(sys.argv[1])
+    eps = float(sys.argv[2])
+    Lx = int(sys.argv[3])
+    sigma_y = int(sys.argv[4])
+    files = glob.glob("so_%g_%g_%d_*.bin" % (eta, eps, Lx))
+    for file in files:
+        try:
+            handle_raw_snap(file, sigma_y)
+        except:
+            print("Error when handling %s with sigma_y = %d" % (file, sigma_y))

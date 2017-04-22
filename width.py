@@ -75,6 +75,8 @@ def plot_all():
     plt.plot(Lys, w1m, "-o")
     # plt.subplot(122)
     plt.plot(Lys, w2m, "-s")
+    plt.xscale("log")
+    plt.yscale("log")
     plt.show()
     plt.close()
 

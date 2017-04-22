@@ -96,10 +96,6 @@ def untangle(x, L):
     return x_new
 
 
-def ini(rho, rho_h, mode="line", dx=5):
-    pass
-
-
 def ini_snake(rho, rho_t, mode="line", dx=5):
     def find_x(rho_x, rho_t, x_pre=None):
         if x_pre is None:

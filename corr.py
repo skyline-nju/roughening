@@ -43,15 +43,17 @@ if __name__ == "__main__":
     os.chdir(r"D:\tmp")
     Lx = 180
     Ly = 1000
-    sigma = [1, 1]
-    r = np.round(np.logspace(2, 19, 18, base=np.sqrt(2))).astype(int)
+    sigma = [5, 1]
+    r = np.round(np.logspace(2, 18, 17, base=np.sqrt(2))).astype(int)
     G1 = np.zeros(r.size)
     G2 = np.zeros(r.size)
     count = 0
     snap = load_snap.RawSnap(r"so_%g_%g_%d_%d_%d_%d_%d.bin" %
                              (0.35, 0, Lx, Ly, Lx * Ly, 2000, 1234))
+    n = snap.get_num_frames()
+    print("n=", n)
     t_beg = 250
-    t_end = None
+    t_end = 300
     for i, frame in enumerate(snap.gene_frames(t_beg, t_end)):
         x, y, theta = frame
         rho = load_snap.coarse_grain2(
@@ -76,4 +78,5 @@ if __name__ == "__main__":
     plt.close()
     for i in range(G1.size):
         print(r[i], G1[i], G2[i])
+    print(count)
 
