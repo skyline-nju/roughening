@@ -15,7 +15,7 @@ def read(file):
     return phi
 
 
-def get_phi_mean(Lxs, Lys, ncut=2500, eta=0.35, eps=0, rho=1, seed=1234):
+def get_phi_mean(Lxs, Lys, ncut=5000, eta=0.35, eps=0, rho=1, seed=1234):
     phi_mean = np.zeros((len(Lxs), len(Lys)))
     for i, Lx in enumerate(Lxs):
         for j, Ly in enumerate(Lys):
@@ -27,9 +27,10 @@ def get_phi_mean(Lxs, Lys, ncut=2500, eta=0.35, eps=0, rho=1, seed=1234):
 
 def phi_vs_Lx_and_Ly():
     Lxs = [150, 160, 180, 200, 220]
-    Lys = [
-        150, 200, 250, 300, 350, 400, 450, 500, 550, 600, 700, 800, 900, 1000
-    ]
+    # Lys = [
+    #     150, 200, 250, 300, 350, 400, 450, 500, 550, 600, 700, 800, 900, 1000
+    # ]
+    Lys = [200, 300, 400, 500, 600, 700, 800, 900, 1000]
 
     phi = get_phi_mean(Lxs, Lys)
     plt.subplot(121)
@@ -64,13 +65,14 @@ def moving_average(phi: np.ndarray, window: int=500):
 
 if __name__ == "__main__":
     os.chdir("data/phi")
-    Phi = []
-    for seed in [1234, 1235, 1236, 1237]:
-        file = "p_0.35_0.02_1_220_25600_%d.dat" % (seed)
-        phi = read(file)[1000:]
-        Phi.append(phi.mean())
-    plt.plot(Phi, "o")
-    plt.show()
-    plt.close()
-    print(sum(Phi)/len(Phi))
+    # Phi = []
+    # for seed in [1234, 1235, 1236, 1237]:
+    #     file = "p_0.35_0.02_1_220_25600_%d.dat" % (seed)
+    #     phi = read(file)[1000:]
+    #     Phi.append(phi.mean())
+    # plt.plot(Phi, "o")
+    # plt.show()
+    # plt.close()
+    # print(sum(Phi)/len(Phi))
+    phi_vs_Lx_and_Ly()
 

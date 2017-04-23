@@ -163,7 +163,7 @@ class CoarseGrainSnap(Snap):
              lx=1,
              ly=1,
              transpos=True,
-             sigma=[10, 1],
+             sigma=[5, 1],
              output=True,
              show=True):
         import half_rho
@@ -174,11 +174,11 @@ class CoarseGrainSnap(Snap):
             t, vxm, vym, num = frame
             rho = num.astype(np.float32)
             yh = np.linspace(0.5, self.nrows - 0.5, self.nrows)
-            xh1, rho_h1 = half_rho.find_interface(rho, sigma=sigma)
+            # xh1, rho_h1 = half_rho.find_interface(rho, sigma=sigma)
             xh2, rho_h2 = half_peak.find_interface(rho, sigma=sigma)
-            xh1 = half_rho.untangle(xh1, self.ncols)
+            # xh1 = half_rho.untangle(xh1, self.ncols)
             xh2 = half_rho.untangle(xh2, self.ncols)
-            w1 = np.var(xh1)
+            # w1 = np.var(xh1)
             w2 = np.var(xh2)
             if show:
                 if ly > 1:
@@ -195,13 +195,13 @@ class CoarseGrainSnap(Snap):
                     rho = rho.T
                     box = [0, self.nrows, 0, self.ncols]
                     plt.figure(figsize=(14, 3))
-                    plt.plot(yh, xh1, "k", yh, xh2, "r")
+                    plt.plot(yh, xh2, "r")
                     plt.xlabel(r"$y$")
                     plt.ylabel(r"$x$")
                 else:
                     box = [0, self.ncols, 0, self.nrows]
                     plt.figure(figsize=(4, 12))
-                    plt.plot(xh1, yh, "k", xh2, yh, "r")
+                    plt.plot(xh2, yh, "r")
                     plt.xlabel(r"$x$")
                     plt.ylabel(r"$y$")
                 rho = gaussian_filter(rho, sigma=sigma)
@@ -212,15 +212,15 @@ class CoarseGrainSnap(Snap):
                     interpolation="none",
                     extent=box,
                     aspect="auto")
-                plt.title(r"$t=%d, \phi=%g, w^2_1=%g, w^2_2=%g$" %
-                          (t, np.sqrt(vxm**2 + vym**2), w1, w2))
+                plt.title(r"$t=%d, \phi=%g, w^2=%g$" %
+                          (t, np.sqrt(vxm**2 + vym**2), w2))
                 plt.tight_layout()
                 plt.show()
                 plt.close()
-            print(t, np.sqrt(vxm**2 + vym**2), w1, w2)
+            print(t, np.sqrt(vxm**2 + vym**2), w2)
             if output:
-                f.write("%d\t%f\t%f\t%f\n" %
-                        (t, np.sqrt(vxm**2 + vym**2), w1, w2))
+                f.write("%d\t%f\t%f\n" %
+                        (t, np.sqrt(vxm**2 + vym**2), w2))
         if output:
             f.close()
 
@@ -346,31 +346,34 @@ def show_separated_snaps(Lx,
                                                   t)
         snap = RawSnap(file)
         for frame in snap.gene_frames():
-            x, y, theta = frame
-            phi = np.sqrt(
-                np.mean(np.cos(theta))**2 + np.mean(np.sin(theta))**2)
-            rho = coarse_grain2(x, y, theta, Lx=Lx, Ly=Ly).astype(float)
-            yh = np.linspace(0.5, Ly - 0.5, Ly)
-            xh, rho_h = find_interface(rho, sigma=sigma)
-            w = np.var(untangle(xh, Lx))
-            print("t=%d, phi=%f, w=%f" % (t, phi, w))
-            plt.subplot(121)
-            if transpos:
-                x, y = y, x
-                xh, yh = yh, xh
-                plt.xlim(0, Ly)
-                plt.ylim(0, Lx)
-            else:
-                plt.xlim(0, Lx)
-                plt.ylim(0, Ly)
-            plt.scatter(x, y, s=1, c=theta, cmap="hsv")
-            plt.plot(xh, yh)
-            plt.title(r"$t=%d, \phi=%g, w^2=%g$" % (t, phi, w))
-            plt.colorbar()
-            plt.subplot(122)
-            plt.plot(rho.mean(axis=0))
-            plt.show()
-            plt.close()
+            try:
+                x, y, theta = frame
+                phi = np.sqrt(
+                    np.mean(np.cos(theta))**2 + np.mean(np.sin(theta))**2)
+                rho = coarse_grain2(x, y, theta, Lx=Lx, Ly=Ly).astype(float)
+                yh = np.linspace(0.5, Ly - 0.5, Ly)
+                xh, rho_h = find_interface(rho, sigma=sigma)
+                w = np.var(untangle(xh, Lx))
+                print("t=%d, phi=%f, w=%f" % (t, phi, w))
+                plt.subplot(121)
+                if transpos:
+                    x, y = y, x
+                    xh, yh = yh, xh
+                    plt.xlim(0, Ly)
+                    plt.ylim(0, Lx)
+                else:
+                    plt.xlim(0, Lx)
+                    plt.ylim(0, Ly)
+                plt.scatter(x, y, s=1, c=theta, cmap="hsv")
+                plt.plot(xh, yh)
+                plt.title(r"$t=%d, \phi=%g, w^2=%g$" % (t, phi, w))
+                plt.colorbar()
+                plt.subplot(122)
+                plt.plot(rho.mean(axis=0))
+                plt.show()
+                plt.close()
+            except:
+                print("t=%d, Error" % t)
         t += dt
 
 
@@ -386,6 +389,9 @@ def handle_file():
 
 
 def handle_raw_snap(file, sigma_y):
+    import load_snap
+    import half_peak
+    import snake
     from half_rho import untangle
     str_list = file.split("_")
     Lx = int(str_list[3])
@@ -412,17 +418,21 @@ def handle_raw_snap(file, sigma_y):
 
 if __name__ == "__main__":
     """ Just for test. """
-    import load_snap
-    import half_peak
-    import snake
-    os.chdir("snap_one")
-    eta = float(sys.argv[1])
-    eps = float(sys.argv[2])
-    Lx = int(sys.argv[3])
-    sigma_y = int(sys.argv[4])
-    files = glob.glob("so_%g_%g_%d_*.bin" % (eta, eps, Lx))
-    for file in files:
-        try:
-            handle_raw_snap(file, sigma_y)
-        except:
-            print("Error when handling %s with sigma_y = %d" % (file, sigma_y))
+    # os.chdir(r"D:\code\VM\VM\snap")
+    # show_separated_snaps(
+    #     180,
+    #     20,
+    #     312,
+    #     1000,
+    #     100000,
+    #     1000,
+    #     0.35,
+    #     0,
+    #     transpos=True,
+    #     sigma=[5, 1])
+    # snap = RawSnap(r"s_0.35_0_1_180_20_313_00800000.bin")
+    # snap.show()
+    os.chdir(r"D:\tmp")
+    snap = CoarseGrainSnap(
+        "cB_0.35_0_180_25600_180_25600_4608000_1.06_4231.bin")
+    snap.show(sigma=[10, 1], show=False)

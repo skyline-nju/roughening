@@ -1,6 +1,6 @@
 """ Cal two-point correlation function:
 
-    C(r, t) = <[\sigma h(r0, t0) - \sigma(r0+r, t0+t)]^2>,
+    C(r, t) = <[\sigma h(r0, t0) - \sigma h(r0+r, t0+t)]^2>,
     with \sigma h = h - <h>.
 
     G(r) = C(r, 0) \sim r^{2 \alpha}
@@ -29,13 +29,35 @@ def cal_G(h, r):
             The same shape as r.
     """
     G = np.zeros(r.size)
-    for i, dr in enumerate(r):
-        dh = h - np.roll(h, dr)
-        G[i] = np.var(dh)
+    if h.ndim == 1:
+        for i, dr in enumerate(r):
+            dh = h - np.roll(h, dr)
+            G[i] = np.mean(dh**2)
+    else:
+        for i, dr in enumerate(r):
+            dh = h - np.roll(h, dr, axis=1)
+            G[i] = np.mean(dh**2)
     return G
 
 
-if __name__ == "__main__":
+def cal_Cs(h):
+    nrows, ncols = h.shape
+    Cs = []
+    t = []
+    sigma_h = np.array([hi - np.mean(hi) for hi in h])
+    print(sigma_h.shape)
+    for drow in range(1, int(nrows / 2)):
+        sum_Cs = 0
+        count = 0
+        for j in range(nrows - drow):
+            sum_Cs += np.mean((sigma_h[j + drow] - sigma_h[j])**2)
+            count += 1
+        Cs.append(sum_Cs / count)
+        t.append(drow)
+    return np.array(t), np.array(Cs)
+
+
+def handle_raw_snap():
     import load_snap
     from half_rho import untangle
     import snake
@@ -80,3 +102,27 @@ if __name__ == "__main__":
         print(r[i], G1[i], G2[i])
     print(count)
 
+
+if __name__ == "__main__":
+    os.chdir("data\interface")
+    r = np.round(np.logspace(2, 18, 17, base=np.sqrt(2))).astype(int)
+    Lx = 200
+    Ly = 1000
+    eps = 0
+    sigma_y = 1
+    file = "so_0.35_%g_%d_%d_%d_2000_1234_%d.npz" % (eps, Lx, Ly, Lx * Ly,
+                                                     sigma_y)
+    data = np.load(file)
+    h1 = data["h1"][250:]
+    h2 = data["h2"][250:]
+    r = np.round(np.logspace(2, 20, 19, base=np.sqrt(2))).astype(int)
+    G1 = cal_G(h1, r)
+    G2 = cal_G(h2, r)
+    plt.plot(r, G1)
+    plt.plot(r, G2)
+    plt.xscale("log")
+    plt.yscale("log")
+    plt.show()
+    plt.close()
+    for i in range(r.size):
+        print(r[i], G1[i], G2[i])
