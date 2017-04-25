@@ -108,31 +108,31 @@ def show_cluster(x, y, c, ax):
 
 if __name__ == "__main__":
     import load_snap
-    os.chdir(r"D:\code\VM\VM\snap")
-    Lx = 180
-    Ly = 20
-    for t in range(10000, 100000, 1000):
-        file = r"s_0.35_0_1_%d_%d_312_%08d.bin" % (Lx, Ly, t)
-        snap = load_snap.RawSnap(file)
-        for frame in snap.gene_frames():
-            x, y, theta = frame
-            # mask = x < 40
-            # x = x[mask]
-            # y = y[mask]
-            # theta = theta[mask]
+    os.chdir(r"D:\tmp")
+    Lx = 220
+    Ly = 800
+    file = r"so_0.35_0.02_%d_%d_%d_2000_1234.bin" % (Lx, Ly, Lx * Ly)
+    snap = load_snap.RawSnap(file)
+    for frame in snap.gene_frames(8):
+        x, y, theta = frame
+        # mask = x < 40
+        # x = x[mask]
+        # y = y[mask]
+        # theta = theta[mask]
 
-            # mask = y < 40
-            # x = x[mask]
-            # y = y[mask]
-            # theta = theta[mask]
+        # mask = y < 40
+        # x = x[mask]
+        # y = y[mask]
+        # theta = theta[mask]
 
-            plt.subplot(121)
-            # plt.plot(x, y, 'o', ms=1)
-            plt.scatter(y, x, c=theta, s=1, cmap="hsv")
-            ax = plt.subplot(122)
-            cell_list = create_cell_list(x, y, Lx, Ly)
-            c = DBSCAN(x, y, 1, 3, Lx, Ly, cell_list)
-            print(len(c))
-            show_cluster(y, x, c, ax)
-            plt.show()
-            plt.close()
+        # plt.subplot(121)
+        # plt.plot(x, y, 'o', ms=1)
+        # plt.scatter(x, y, c=theta, s=1, cmap="hsv")
+        # ax = plt.subplot(122)
+        ax = plt.subplot()
+        cell_list = create_cell_list(x, y, Lx, Ly)
+        c = DBSCAN(x, y, 1, 3, Lx, Ly, cell_list)
+        print(len(c))
+        show_cluster(y, x, c, ax)
+        plt.show()
+        plt.close()

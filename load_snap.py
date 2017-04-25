@@ -434,5 +434,5 @@ if __name__ == "__main__":
     # snap.show()
     os.chdir(r"D:\tmp")
     snap = CoarseGrainSnap(
-        "cB_0.35_0_180_25600_180_25600_4608000_1.06_4231.bin")
-    snap.show(sigma=[10, 1], show=False)
+        "cB_0.35_0_180_25600_180_25600_4608000_1.06_4232.bin")
+    snap.show(sigma=[15, 1], show=False)
