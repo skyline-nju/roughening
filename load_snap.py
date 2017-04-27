@@ -191,6 +191,7 @@ class CoarseGrainSnap(Snap):
                         np.mean(rho[:, i * lx:(i + 1) * lx], axis=1)
                         for i in range(self.ncols // lx)
                     ])
+                rho = gaussian_filter(rho, sigma=[5, 1])
                 if transpos:
                     rho = rho.T
                     box = [0, self.nrows, 0, self.ncols]
@@ -204,7 +205,6 @@ class CoarseGrainSnap(Snap):
                     plt.plot(xh2, yh, "r")
                     plt.xlabel(r"$x$")
                     plt.ylabel(r"$y$")
-                rho = gaussian_filter(rho, sigma=sigma)
                 rho[rho > 4] = 4
                 plt.imshow(
                     rho,
@@ -434,5 +434,5 @@ if __name__ == "__main__":
     # snap.show()
     os.chdir(r"D:\tmp")
     snap = CoarseGrainSnap(
-        "cB_0.35_0_180_25600_180_25600_4608000_1.06_4232.bin")
-    snap.show(sigma=[15, 1], show=False)
+        "cB_0.35_0.02_220_25600_220_25600_5632000_1.06_4237.bin")
+    snap.show(sigma=[15, 1], show=True, i_beg=90)

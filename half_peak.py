@@ -165,24 +165,51 @@ def detect_right_peak(y, i0, vally_thresh, relative_height, max_step=40):
 
 
 def find_first_row(rho, debug=0):
+    ip_list = []
+    row_list = []
+    ih_list = []
+    row2_list = []
     for row, rho_x in enumerate(rho):
         rho_h = 0.5 * rho_x.max()
-        count = 0
+        idx_h = []
         for i in range(rho_x.size):
             if rho_x[i - 1] >= rho_h >= rho_x[i]:
-                count += 1
-                idx_h = i
-        if count == 1:
-            idx_peak = detect_right_peak(
-                rho_x,
-                idx_h,
-                vally_thresh=0.2,
-                relative_height=0.1,
-                max_step=50)
+                idx_h.append(i)
+        if len(idx_h) == 1:
+            idx_peak = detect_right_peak(rho_x, idx_h[0], 0.2, 0.1, 50)
             if idx_peak is None:
-                idx_peak = detect_left_peak(rho_x, idx_h, 0.5)
-                if rho_x[idx_peak] >= 4:
+                idx_peak = detect_left_peak(rho_x, idx_h[0], 0.5)
+                if rho_x[idx_peak] > 4:
                     return row, idx_peak
+                else:
+                    ip_list.append(idx_peak)
+                    row_list.append(row)
+        elif len(idx_h) == 2:
+            idx_peak0 = detect_right_peak(rho_x, idx_h[0], 0.2, 0.1, 50)
+            idx_peak1 = detect_right_peak(rho_x, idx_h[1], 0.2, 0.1, 50)
+            if idx_peak0 is None and idx_peak1 is not None:
+                ih_list.append(idx_h[0])
+                row2_list.append(row)
+            elif idx_peak0 is not None and idx_peak1 is None:
+                ih_list.append(idx_h[1])
+                row2_list.append(row)
+    if len(ip_list) > 0:
+        peak = np.array([rho[row, ip] for ip, row in zip(ip_list, row_list)])
+        idx_m = np.argmax(peak)
+        return row_list[idx_m], ip_list[idx_m]
+    elif len(ih_list) > 0:
+        for row, idx_h in zip(row2_list, ih_list):
+            idx_peak = detect_left_peak(rho[row], idx_h, 0.5)
+            if rho[row, idx_peak] > 4:
+                return row, idx_peak
+            else:
+                ip_list.append(idx_peak)
+                row_list.append(row)
+        if len(ip_list) > 0:
+            peak = np.array(
+                [rho[row, ip] for ip, row in zip(ip_list, row_list)])
+            idx_m = np.argmax(peak)
+            return row_list[idx_m], ip_list[idx_m]
 
 
 def get_next_idx_h(rho_x, idx_h_pre, rho_h_pre=None, debug=False):

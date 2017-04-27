@@ -19,12 +19,15 @@ def make_movie(frames, file, out_data=False):
         xh1, rho_h = half_peak.find_interface(rho, sigma=[5, 1])
         xh2, rho_h = half_peak.find_interface(rho, sigma=[10, 1])
         xh3, rho_h = half_peak.find_interface(rho, sigma=[15, 1])
+        xh4, rho_h = half_peak.find_interface(rho, sigma=[20, 1])
         xh1 = half_rho.untangle(xh1, Lx)
         xh2 = half_rho.untangle(xh2, Lx)
         xh3 = half_rho.untangle(xh3, Lx)
+        xh4 = half_rho.untangle(xh4, Lx)
         w1 = np.var(xh1)
         w2 = np.var(xh2)
         w3 = np.var(xh3)
+        w4 = np.var(xh4)
         dx = np.round(100 - np.mean(xh1)).astype(int)
         xh1 += dx
         xh2 += dx
@@ -39,7 +42,7 @@ def make_movie(frames, file, out_data=False):
         writer.grab_frame()
         print("t=", t)
         if out_data:
-            f.write("%d\t%f\t%f\t%f\t%f\n" % (t, phi, w1, w2, w3))
+            f.write("%d\t%f\t%f\t%f\t%f\t%f\n" % (t, phi, w1, w2, w3, w4))
 
     import half_peak
     import half_rho
@@ -85,26 +88,38 @@ if __name__ == "__main__":
     if platform.system() is "Windows":
         os.chdir("D:\\tmp")
         eta = 0.35
-        eps = 0
-        Lx = 180
+        eps = 0.02
+        Lx = 220
         Ly = 25600
-        seed = 4232
+        seed = 1234
         interval = 1
+        N = Lx * Ly
     else:
         os.chdir("coarse")
-        eta = float(sys.argv[1])
-        eps = float(sys.argv[2])
-        Lx = int(sys.argv[3])
-        Ly = int(sys.argv[4])
-        seed = int(sys.argv[5])
-        if len(sys.argv) == 7:
-            interval = int(sys.argv[6])
+        interval = 1
+        if len(sys.argv) == 2:
+            file = sys.argv[1]
+            para_list = file.replace(".bin", "").split("_")
+            eta = float(para_list[1])
+            eps = float(para_list[2])
+            Lx = int(para_list[3])
+            Ly = int(para_list[4])
+            N = int(para_list[7])
+            seed = int(para_list[9])
         else:
-            interval = 1
+            eta = float(sys.argv[1])
+            eps = float(sys.argv[2])
+            Lx = int(sys.argv[3])
+            Ly = int(sys.argv[4])
+            seed = int(sys.argv[5])
+            if len(sys.argv) == 7:
+                N = int(sys.argv[6])
+            else:
+                N = Lx * Ly
 
     yh = np.arange(Ly) + 0.5
     file = "cB_%g_%g_%d_%d_%d_%d_%d_1.06_%d.bin" % (eta, eps, Lx, Ly, Lx, Ly,
-                                                    Lx * Ly, seed)
+                                                    N, seed)
     snap = load_snap.CoarseGrainSnap(file)
     frames = snap.gene_frames(interval=interval)
     make_movie(frames, file.replace("bin", "mp4"), out_data=True)
