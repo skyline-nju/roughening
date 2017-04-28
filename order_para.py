@@ -36,8 +36,9 @@ def phi_vs_Lx_and_Ly():
     plt.subplot(121)
     for i, Lx in enumerate(Lxs):
         plt.plot(Lys, phi[i], "-o", label=r"$L_x=%d$" % Lx)
-    plt.xscale("log")
-    plt.yscale("log")
+        
+    # plt.xscale("log")
+    # plt.yscale("log")
     plt.legend(loc="best")
 
     plt.subplot(122)

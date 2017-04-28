@@ -388,32 +388,39 @@ def handle_file():
             print("error when handle ", file)
 
 
-def handle_raw_snap(file, sigma_y):
+def handle_raw_snap(file):
     import load_snap
     import half_peak
-    import snake
     from half_rho import untangle
+
+    path, file = file.split("/")
+    os.chdir(path)
     str_list = file.split("_")
     Lx = int(str_list[3])
     Ly = int(str_list[4])
-    sigma = [sigma_y, 1]
     snap = load_snap.RawSnap(file)
-    n = snap.get_num_frames()
-    h1 = np.zeros((n, Ly), np.float32)
-    h2 = np.zeros((n, Ly), np.float32)
+    outfile = file.replace(".bin", ".dat")
+    f = open(outfile, "w")
     for i, frame in enumerate(snap.gene_frames()):
         x, y, theta = frame
+        vxm = np.mean(np.cos(theta))
+        vym = np.mean(np.sin(theta))
+        phi = np.sqrt(vxm**2 + vym**2)
         rho = load_snap.coarse_grain2(
             x, y, theta, Lx=Lx, Ly=Ly, ncols=Lx, nrows=Ly).astype(float)
-        xh1, rho_h = half_peak.find_interface(rho, sigma=sigma)
-        rho_s = gaussian_filter(rho, sigma=sigma)
-        xh2, yh2 = snake.find_interface(
-            rho_s, 0.5, 0.1, 0.25, 400, rho_h, dx=5)
-        h1[i] = untangle(xh1, Lx)
-        h2[i] = untangle(xh2, Lx)
-        print("i=", i)
-    outfile = file.replace(".bin", "_%d.npz" % sigma_y)
-    np.savez(outfile, h1=h1, h2=h2)
+        line = "%d\t%f" % (i, phi)
+        for sigma_y in [1, 5, 10, 15, 20]:
+            try:
+                xh, rho_h = half_peak.find_interface(rho, sigma=[sigma_y, 1])
+                xh = untangle(xh, rho_h)
+                w = np.var(xh)
+                line += "\t%f" % (w)
+            except:
+                print("Error when sigma_y = %d and i = %d" % (sigma_y, i))
+                line += "\t"
+        line += "\n"
+        f.write(line)
+    f.close()
 
 
 if __name__ == "__main__":
@@ -432,7 +439,9 @@ if __name__ == "__main__":
     #     sigma=[5, 1])
     # snap = RawSnap(r"s_0.35_0_1_180_20_313_00800000.bin")
     # snap.show()
-    os.chdir(r"D:\tmp")
-    snap = CoarseGrainSnap(
-        "cB_0.35_0.02_220_25600_220_25600_5632000_1.06_4237.bin")
-    snap.show(sigma=[15, 1], show=True, i_beg=90)
+    # os.chdir(r"D:\tmp")
+    # snap = CoarseGrainSnap(
+    #     "cB_0.35_0.02_220_25600_220_25600_5632000_1.06_4237.bin")
+    # snap.show(sigma=[15, 1], show=True, i_beg=90)
+    file = sys.argv[1]
+    handle_raw_snap(file)

@@ -106,10 +106,10 @@ def handle_raw_snap():
 if __name__ == "__main__":
     os.chdir("data\interface")
     r = np.round(np.logspace(2, 18, 17, base=np.sqrt(2))).astype(int)
-    Lx = 200
+    Lx = 160
     Ly = 1000
     eps = 0
-    sigma_y = 1
+    sigma_y = 15
     file = "so_0.35_%g_%d_%d_%d_2000_1234_%d.npz" % (eps, Lx, Ly, Lx * Ly,
                                                      sigma_y)
     data = np.load(file)

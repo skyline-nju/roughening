@@ -48,7 +48,7 @@ def filtering(t0, w0, max_dw=100):
 
 def plot_all():
     os.chdir(r"data\width")
-    Lx = 200
+    Lx = 220
     Lys = [
         150, 200, 250, 300, 350, 400, 450, 500, 550, 600, 700, 800, 900, 1000
     ]
@@ -82,10 +82,17 @@ def plot_all():
 
 
 if __name__ == "__main__":
-    # os.chdir(r"D:\tmp")
-    # t, w = read2("wh_0.35_0_150_900_135000_2000_1234.dat")
-    # for wdt in w.T:
-    #     plt.plot(t, wdt)
-    #     plt.show()
-    #     plt.close()
-    plot_all()
+    os.chdir("data\interface")
+    Lx = 220
+    Lys = [400, 500, 600, 700, 800, 900, 1000]
+    eps = 0
+    sigma_y = 15
+    for Ly in Lys:
+        file = "so_0.35_%g_%d_%d_%d_2000_1234_%d.npz" % (eps, Lx, Ly, Lx * Ly,
+                                                         sigma_y)
+        data = np.load(file)
+        h1 = data["h1"][250:]
+        h2 = data["h2"][250:]
+        w1 = np.mean(np.var(h1, axis=1))
+        w2 = np.mean(np.var(h2, axis=1))
+        print(Ly, w1, w2)
