@@ -8,10 +8,54 @@ import os
 import numpy as np
 import matplotlib
 import platform
+import sys
+import load_snap
+import half_peak
+import half_rho
+from scipy.ndimage import gaussian_filter
 matplotlib.use("Agg")
+if platform.system() is "Windows":
+    import matplotlib.pyplot as plt
+    import matplotlib.animation as animation
+    plt.rcParams['animation.ffmpeg_path'] = r"D:\ffmpeg\bin\ffmpeg"
+else:
+    import matplotlib.pyplot as plt
+    import matplotlib.animation as animation
+    plt.rcParams['animation.ffmpeg_path'] = "/home-yw/users/nsyw449_YK" \
+        + "/dy/Program/ffmpeg-3.3-64bit-static/ffmpeg"
 
 
-def make_movie(frames, file, out_data=False):
+def get_para(file):
+    if isinstance(file, list):
+        eta = []
+        eps = []
+        Lx = []
+        Ly = []
+        N = []
+        for f in file:
+            s = f.replace(".bin", "").split("_")
+            eta.append(float(s[1]))
+            eps.append(float(s[2]))
+            Lx.append(int(s[3]))
+            Ly.append(int(s[4]))
+            N.append(int(s[7]))
+    else:
+        s = file.replace(".bin", "").split("_")
+        eta = float(s[1])
+        eps = float(s[2])
+        Lx = int(s[3])
+        Ly = int(s[4])
+        N = int(s[7])
+    return eta, eps, Lx, Ly, N
+
+
+def make_movie_single(file, t_beg=0, t_end=None, interval=1, out_data=False):
+    """ Make movie from one single file.
+
+        Each frame contains the contour plot of density and curves of
+        interfaces estimated by diffrent sigma_y.
+    """
+
     def update_frame(frame):
         t, vxm, vym, num = frame
         rho = num.astype(float)
@@ -38,22 +82,16 @@ def make_movie(frames, file, out_data=False):
         line1.set_data(yh, xh1)
         # line2.set_data(yh, xh2)
         line3.set_data(yh, xh3)
-        title.set_text(title_template % (eta, eps, Lx, Ly, t, phi, w1, w3))
+        title.set_text(title_template % (eta, eps, Lx, Ly, N, t, phi, w1, w3))
         writer.grab_frame()
         print("t=", t)
         if out_data:
             f.write("%d\t%f\t%f\t%f\t%f\t%f\n" % (t, phi, w1, w2, w3, w4))
 
-    import half_peak
-    import half_rho
-    import matplotlib.pyplot as plt
-    import matplotlib.animation as animation
-    from scipy.ndimage import gaussian_filter
-    if platform.system() is "Windows":
-        plt.rcParams['animation.ffmpeg_path'] = r"D:\ffmpeg\bin\ffmpeg"
-    else:
-        plt.rcParams['animation.ffmpeg_path'] = "/home-yw/users/nsyw449_YK" \
-            + "/dy/Program/ffmpeg-3.3-64bit-static/ffmpeg"
+    eta, eps, Lx, Ly, N = get_para(file)
+    yh = np.arange(Ly) + 0.5
+    snap = load_snap.CoarseGrainSnap(file)
+    frames = snap.gene_frames(t_beg, t_end, interval=interval)
     FFMpegWriter = animation.writers["ffmpeg"]
     writer = FFMpegWriter(fps=4, metadata=dict(artist='Matplotlib'))
     fig = plt.figure(figsize=(16, 3.6))
@@ -67,24 +105,74 @@ def make_movie(frames, file, out_data=False):
         vmax=5,
         aspect="auto")
     line1, = plt.plot([], [], lw=1.5, c="r")
-    # line2, = plt.plot([], [], lw=1.5, c="g")
     line3, = plt.plot([], [], lw=1.5, c="k")
     title = plt.title("")
-    title_template = r"$\eta=%g, \epsilon=%g, L_x=%d, L_y=%d, t=%d," \
+    title_template = r"$\eta=%g, \epsilon=%g, L_x=%d, L_y=%d, N=%d, t=%d," \
         + r"\phi=%.4f, w^2(\sigma_y=5)=%.4f, w^2(\sigma_y=15)=%.4f$"
     plt.tight_layout(rect=[0, 0, 1, 0.96])
     if out_data:
-        f = open(file.replace(".mp4", ".dat"), "w")
-    with writer.saving(fig, file, dpi=100):
+        f = open(file.replace(".bin", ".dat"), "w")
+    with writer.saving(fig, file.replace(".bin", ".mp4"), dpi=100):
         for frame in frames:
             update_frame(frame)
     if out_data:
         f.close()
 
 
+def make_movie_mult(files, t_beg=0, t_end=None):
+    """ Make movie from multiple file.
+
+        Each frame contains multiplt interfaces generated from each input
+        file.
+    """
+
+    def update_frame():
+        for i in range(nfile):
+            t, vxm, vym, num = next(frames[i])
+            xh, rho_h = half_peak.find_interface(
+                num.astype(float), sigma=[20, 1])
+            xh = half_rho.untangle(xh, Lx[i])
+            w = np.var(xh)
+            dx = 100 - np.mean(xh)
+            xh += dx
+            phi = np.sqrt(vxm**2 + vym**2)
+            line[i].set_data(yh[i], xh)
+            line[i].set_label(r"$L_y=%d, w^2=%.4f, \phi=%.4f$" %
+                              (Lx[i], w, phi))
+        title.set_text(r"$\eta=%g, \epsilon=%g, L_x=%d, t=%d$" %
+                       (eta[0], eps[0], Ly[0], t))
+        plt.legend()
+        writer.grab_frame()
+        print("t=", t)
+
+    nfile = len(files)
+    eta, eps, Lx, Ly, N = get_para(files)
+    yh = [np.arange(ly) + 0.5 for ly in Ly]
+    snap = [load_snap.CoarseGrainSnap(file) for file in files]
+    i_end = min(i.get_num_frames() for i in snap)
+    if t_end is not None:
+        t_end = min(i_end, t_end)
+    else:
+        t_end = i_end
+    frames = [i.gene_frames(t_beg, t_end) for i in snap]
+    FFMpegWriter = animation.writers["ffmpeg"]
+    writer = FFMpegWriter(fps=4, metadata=dict(artist='Matplotlib'))
+    fig = plt.figure(figsize=(16, 3))
+    plt.xlim(0, Ly[0])
+    plt.ylim(0, 400)
+    line = []
+    c_list = plt.cm.viridis(np.linspace(0, 1, nfile))
+    for i in range(nfile):
+        l, = plt.plot([], [], lw=1.5, c=c_list[i])
+        line.append(l)
+    title = plt.title("")
+    plt.tight_layout(rect=[0, 0, 1, 0.96])
+    with writer.saving(fig, "%g_%g_%d.mp4" % (eta[0], eps[0], Ly[0]), dpi=100):
+        for j in range(t_end - t_beg):
+            update_frame()
+
+
 if __name__ == "__main__":
-    import sys
-    import load_snap
     if platform.system() is "Windows":
         os.chdir("D:\\tmp")
         eta = 0.35
@@ -96,30 +184,9 @@ if __name__ == "__main__":
         N = Lx * Ly
     else:
         os.chdir("coarse")
-        interval = 1
         if len(sys.argv) == 2:
-            file = sys.argv[1]
-            para_list = file.replace(".bin", "").split("_")
-            eta = float(para_list[1])
-            eps = float(para_list[2])
-            Lx = int(para_list[3])
-            Ly = int(para_list[4])
-            N = int(para_list[7])
-            seed = int(para_list[9])
-        else:
-            eta = float(sys.argv[1])
-            eps = float(sys.argv[2])
-            Lx = int(sys.argv[3])
-            Ly = int(sys.argv[4])
-            seed = int(sys.argv[5])
-            if len(sys.argv) == 7:
-                N = int(sys.argv[6])
-            else:
-                N = Lx * Ly
-
-    yh = np.arange(Ly) + 0.5
-    file = "cB_%g_%g_%d_%d_%d_%d_%d_1.06_%d.bin" % (eta, eps, Lx, Ly, Lx, Ly,
-                                                    N, seed)
-    snap = load_snap.CoarseGrainSnap(file)
-    frames = snap.gene_frames(interval=interval)
-    make_movie(frames, file.replace("bin", "mp4"), out_data=True)
+            file = sys.argv[1].split("/")[1]
+            make_movie_single(file, out_data=True)
+        elif len(sys.argv) > 2:
+            files = [file.split("/")[1] for file in sys.argv[1:]]
+            make_movie_mult(files)
