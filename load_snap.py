@@ -219,8 +219,7 @@ class CoarseGrainSnap(Snap):
                 plt.close()
             print(t, np.sqrt(vxm**2 + vym**2), w2)
             if output:
-                f.write("%d\t%f\t%f\n" %
-                        (t, np.sqrt(vxm**2 + vym**2), w2))
+                f.write("%d\t%f\t%f\n" % (t, np.sqrt(vxm**2 + vym**2), w2))
         if output:
             f.close()
 
@@ -389,8 +388,8 @@ def handle_file():
 
 
 def handle_raw_snap(file):
-    import load_snap
     import half_peak
+    import spatial_corr
     from half_rho import untangle
 
     path, file = file.split("/")
@@ -398,21 +397,22 @@ def handle_raw_snap(file):
     str_list = file.split("_")
     Lx = int(str_list[3])
     Ly = int(str_list[4])
-    snap = load_snap.RawSnap(file)
+    snap = RawSnap(file)
     outfile = file.replace(".bin", ".dat")
     f = open(outfile, "w")
+    corr2D = spatial_corr.Corr2D(file, 1)
     for i, frame in enumerate(snap.gene_frames()):
         x, y, theta = frame
         vxm = np.mean(np.cos(theta))
         vym = np.mean(np.sin(theta))
         phi = np.sqrt(vxm**2 + vym**2)
-        rho = load_snap.coarse_grain2(
+        rho = coarse_grain2(
             x, y, theta, Lx=Lx, Ly=Ly, ncols=Lx, nrows=Ly).astype(float)
         line = "%d\t%f" % (i, phi)
         for sigma_y in [1, 5, 10, 15, 20]:
             try:
                 xh, rho_h = half_peak.find_interface(rho, sigma=[sigma_y, 1])
-                xh = untangle(xh, rho_h)
+                xh = untangle(xh, Lx)
                 w = np.var(xh)
                 line += "\t%f" % (w)
             except:
@@ -420,7 +420,11 @@ def handle_raw_snap(file):
                 line += "\t"
         line += "\n"
         f.write(line)
+        if i >= 300:
+            rho, vx, vy = coarse_grain(x, y, theta, Lx, Ly)
+            corr2D.accu(vx, vy, rho)
     f.close()
+    corr2D.outfile()
 
 
 if __name__ == "__main__":
