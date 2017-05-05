@@ -277,6 +277,10 @@ def coarse_grain(x,
     for i in range(n):
         col = int(x[i] * ncols_over_Lx)
         row = int(y[i] * nrows_over_Ly)
+        if col >= ncols:
+            col = ncols - 1
+        if row >= nrows:
+            row = nrows - 1
         rho[row, col] += 1
         if flag_v:
             vx[row, col] += cos_theta[i]

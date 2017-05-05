@@ -1,35 +1,19 @@
 import numpy as np
 import os
 import matplotlib.pyplot as plt
+from scipy import stats
+import order_para
 
 
-def read(file):
+def read(file, ncut=300):
     with open(file) as f:
-        lines = f.readlines()
-        t = np.zeros(len(lines), int)
-        w1 = np.zeros(len(lines))
-        w2 = np.zeros(len(lines))
-        for i, line in enumerate(lines):
-            s = line.replace("\n", "").split("\t")
-            t[i] = int(s[0])
-            w1[i] = float(s[1])
-            w2[i] = float(s[2])
-    return t, w1, w2
-
-
-def read2(file):
-    with open(file) as f:
-        lines = f.readlines()
-        nrows = len(lines)
-        ncols = len(lines[0].split("\t")) - 1
-        t = np.zeros(nrows, int)
-        w = np.zeros((nrows, ncols))
-        for i, line in enumerate(lines):
-            str_list = line.replace("\n", "").split("\t")
-            t[i] = int(str_list[0])
-            for j, s in enumerate(str_list[1:]):
-                w[i, j] = float(s)
-    return t, w
+        lines = f.readlines()[ncut:]
+        n = len(lines)
+        data = np.zeros((n, 7))
+        for j, line in enumerate(lines):
+            for i, s in enumerate(line.replace("\n", "").split("\t")):
+                data[j, i] = float(s)
+        return data
 
 
 def filtering(t0, w0, max_dw=100):
@@ -46,53 +30,47 @@ def filtering(t0, w0, max_dw=100):
     return np.array(t), np.array(w)
 
 
-def plot_all():
-    os.chdir(r"data\width")
-    Lx = 220
-    Lys = [
-        150, 200, 250, 300, 350, 400, 450, 500, 550, 600, 700, 800, 900, 1000
-    ]
-    w1m = []
-    w2m = []
-    for Ly in Lys:
-        file = r"w_0.35_0_%d_%d_%d_2000_1234.dat" % (Lx, Ly, Lx * Ly)
-        t, w1, w2 = read(file)
-        t1, w1f = filtering(t, w1, 50)
-        t2, w2f = filtering(t, w2)
-        w1m.append(w1f[250:].mean())
-        w2m.append(w2f[250:].mean())
-        print(Ly, w1m[-1], w2m[-1])
-        if Ly == 150:
-            plt.subplot(211)
-            plt.plot(w1)
-            plt.plot(w1f)
-            plt.subplot(212)
-            plt.plot(w2)
-            plt.plot(w2f)
-            plt.show()
-            plt.close()
-    # plt.subplot(121)
-    plt.plot(Lys, w1m, "-o")
-    # plt.subplot(122)
-    plt.plot(Lys, w2m, "-s")
-    plt.xscale("log")
-    plt.yscale("log")
+def phi_vs_w(m1, m2):
+    xmin = m1.min()
+    xmax = m1.max()
+    ymin = m2.min()
+    ymax = m2.max()
+
+    X, Y = np.mgrid[xmin:xmax:100j, ymin:ymax:100j]
+    values = np.vstack([m1, m2])
+    kernel = stats.gaussian_kde(values)
+    # Z = np.reshape(kernel(positions).T, X.shape)
+    z = kernel(values).T
+    print(z.shape)
+    fig, ax = plt.subplots()
+    sca = ax.scatter(m1, m2, s=1, c=z, cmap="jet")
+    ax.set_xlim([xmin, xmax])
+    ax.set_ylim([ymin, ymax])
+    plt.colorbar(sca)
     plt.show()
     plt.close()
 
 
 if __name__ == "__main__":
-    os.chdir("data\interface")
+    os.chdir(r"data")
     Lx = 220
-    Lys = [400, 500, 600, 700, 800, 900, 1000]
-    eps = 0
-    sigma_y = 15
-    for Ly in Lys:
-        file = "so_0.35_%g_%d_%d_%d_2000_1234_%d.npz" % (eps, Lx, Ly, Lx * Ly,
-                                                         sigma_y)
-        data = np.load(file)
-        h1 = data["h1"][250:]
-        h2 = data["h2"][250:]
-        w1 = np.mean(np.var(h1, axis=1))
-        w2 = np.mean(np.var(h2, axis=1))
-        print(Ly, w1, w2)
+    Lys = np.arange(200, 1100, 100)
+    phi = np.zeros(Lys.size)
+    w = np.zeros((Lys.size, 5))
+    for i, Ly in enumerate(Lys):
+        file = r"width\so_0.35_0_%d_%d_%d_2000_1234.dat" % (Lx, Ly, Lx * Ly)
+        file2 = r"phi\p_0.35_0_1_%d_%d_1234.dat" % (Lx, Ly)
+        data = read(file)
+        line = "%d" % Ly
+        phi[i] = np.mean(order_para.read(file2)[5000:])
+        t1, w1 = filtering(data[:, 0], data[:, 2])
+        w[i, 0] = np.mean(w1)
+        line += "\t%f\t%f" % (phi[i], w[i, 0])
+        for j in range(3, 7):
+            w[i, j-2] = np.mean(data[:, j])
+            line += "\t%f" % (w[i, j-2])
+        print(line)
+    plt.loglog(Lys, w[:, 4], "-o")
+    plt.show()
+    plt.close()
+

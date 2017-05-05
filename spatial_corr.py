@@ -61,12 +61,7 @@ class Corr2D:
         np.savez(self.outfile, C_rho=C_rho, C_J=C_J, C_u=C_u)
 
 
-if __name__ == "__main__":
-    import load_snap
-    import os
-    import sys
-
-    file = sys.argv[1]
+def handle_file(file):
     path, file = file.split("/")
     os.chdir(path)
     str_list = file.split("_")
@@ -79,3 +74,33 @@ if __name__ == "__main__":
         rho, vx, vy = load_snap.coarse_grain(x, y, theta, Lx, Ly)
         corr.accu(vx, vy, rho)
     corr.output()
+
+
+def read_npz(file):
+    npzfile = np.load(file)
+    C_rho = npzfile["C_rho"]
+    C_J = npzfile["C_J"]
+    C_u = npzfile["C_u"]
+    return C_rho, C_J, C_u
+
+
+if __name__ == "__main__":
+    import load_snap
+    import os
+    import sys
+    import matplotlib.pyplot as plt
+
+    file1 = r"data/corr/corr_so_0.35_0_150_100_15000_2000_1234.npz"
+    file2 = r"data/corr/corr_so_0.35_0_150_500_75000_2000_1234.npz"
+    C_rho, C_J, C_u = read_npz(file1)
+    nrows, ncols = C_rho.shape
+    print(nrows, ncols)
+    # plt.imshow(C_u, interpolation="none", origin="lower")
+    # plt.show()
+    plt.plot(C_u[nrows//2:, ncols//2])
+    C_rho2, C_J2, C_u2 = read_npz(file2)
+    nrows2, ncols2 = C_rho2.shape
+    plt.plot(C_u2[nrows2//2:, ncols2//2])
+    plt.xscale("log")
+    plt.yscale("log")
+    plt.show()
