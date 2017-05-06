@@ -90,17 +90,22 @@ if __name__ == "__main__":
     import sys
     import matplotlib.pyplot as plt
 
-    file1 = r"data/corr/corr_so_0.35_0_150_100_15000_2000_1234.npz"
-    file2 = r"data/corr/corr_so_0.35_0_150_500_75000_2000_1234.npz"
+    Lx = 180
+    Ly1 = 100
+    Ly2 = 1000
+    file1 = r"data/corr/corr_so_0.35_0_%d_%d_%d_2000_1234.npz" % (Lx, Ly1, Lx *
+                                                                  Ly1)
+    file2 = r"data/corr/corr_so_0.35_0_%d_%d_%d_2000_1234.npz" % (Lx, Ly2, Lx *
+                                                                  Ly2)
     C_rho, C_J, C_u = read_npz(file1)
     nrows, ncols = C_rho.shape
     print(nrows, ncols)
     # plt.imshow(C_u, interpolation="none", origin="lower")
     # plt.show()
-    plt.plot(C_u[nrows//2:, ncols//2])
+    plt.plot(C_J[nrows // 2, ncols // 2:])
     C_rho2, C_J2, C_u2 = read_npz(file2)
     nrows2, ncols2 = C_rho2.shape
-    plt.plot(C_u2[nrows2//2:, ncols2//2])
-    plt.xscale("log")
+    plt.plot(C_J2[nrows2 // 2, ncols2 // 2:])
+    # plt.xscale("log")
     plt.yscale("log")
     plt.show()

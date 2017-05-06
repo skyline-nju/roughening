@@ -12,7 +12,10 @@ def read(file, ncut=300):
         data = np.zeros((n, 7))
         for j, line in enumerate(lines):
             for i, s in enumerate(line.replace("\n", "").split("\t")):
-                data[j, i] = float(s)
+                if s == "":
+                    data[j, i] = -1
+                else:
+                    data[j, i] = float(s)
         return data
 
 
@@ -54,7 +57,7 @@ def phi_vs_w(m1, m2):
 if __name__ == "__main__":
     os.chdir(r"data")
     Lx = 220
-    Lys = np.arange(200, 1100, 100)
+    Lys = np.arange(100, 1100, 100)
     phi = np.zeros(Lys.size)
     w = np.zeros((Lys.size, 5))
     for i, Ly in enumerate(Lys):
@@ -63,14 +66,14 @@ if __name__ == "__main__":
         data = read(file)
         line = "%d" % Ly
         phi[i] = np.mean(order_para.read(file2)[5000:])
+        line += "\t%f" % (phi[i])
         t1, w1 = filtering(data[:, 0], data[:, 2])
         w[i, 0] = np.mean(w1)
-        line += "\t%f\t%f" % (phi[i], w[i, 0])
-        for j in range(3, 7):
-            w[i, j-2] = np.mean(data[:, j])
-            line += "\t%f" % (w[i, j-2])
+        for j in range(5):
+            tj, wj = filtering(data[:, 0], data[:, j+2])
+            w[i, j] = np.mean(wj)
+            line += "\t%f" % (w[i, j])
         print(line)
     plt.loglog(Lys, w[:, 4], "-o")
     plt.show()
     plt.close()
-
