@@ -292,9 +292,9 @@ if __name__ == "__main__":
     for i, frame in enumerate(snap.gene_frames(t_beg, t_end)):
         x, y, theta = frame
         rho = load_snap.coarse_grain2(x, y, theta, Lx=Lx, Ly=Ly).astype(float)
-        xh, rho_h = find_interface(rho, sigma=[5, 1], debug=debug)
+        xh, rho_h = find_interface(rho, sigma=[10, 1], debug=debug)
         # xh1, rho_h1 = find_interface(rho, sigma=[5, 1], leftward=True)
-        xh2, rho_h2 = half_rho.find_interface(rho, sigma=[5, 1])
+        xh2, rho_h2 = half_rho.find_interface(rho, sigma=[10, 1])
         xh = half_rho.untangle(xh, Lx)
         # xh1 = half_rho.untangle(xh1, Lx)
         xh2 = half_rho.untangle(xh2, Lx)
@@ -312,6 +312,7 @@ if __name__ == "__main__":
             plt.close()
         w1.append(np.var(xh))
         w2.append(np.var(xh2))
+
     plt.plot(w1, label="1")
     plt.plot(w2, label="2")
     plt.legend()
