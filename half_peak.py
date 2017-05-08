@@ -280,34 +280,38 @@ if __name__ == "__main__":
     import load_snap
     import half_rho
     os.chdir(r"D:\tmp")
-    Lx = 150
-    Ly = 250
+    Lx = 180
+    Ly = 1000
     snap = load_snap.RawSnap(r"so_%g_%g_%d_%d_%d_%d_%d.bin" %
                              (0.35, 0, Lx, Ly, Lx * Ly, 2000, 1234))
     debug = 1
-    t_beg = 2164
-    t_end = 2165
+    t_beg = 1758
+    t_end = 1759
     w1 = []
     w2 = []
     for i, frame in enumerate(snap.gene_frames(t_beg, t_end)):
         x, y, theta = frame
         rho = load_snap.coarse_grain2(x, y, theta, Lx=Lx, Ly=Ly).astype(float)
-        xh, rho_h = find_interface(rho, sigma=[10, 1], debug=debug)
-        # xh1, rho_h1 = find_interface(rho, sigma=[5, 1], leftward=True)
-        xh2, rho_h2 = half_rho.find_interface(rho, sigma=[10, 1])
+        xh, rho_h = find_interface(rho, sigma=[1, 1])
+        xh2, rho_h2 = half_rho.find_interface(rho, sigma=[5, 1])
+        xh3, rho_h3 = half_rho.find_interface(rho, sigma=[10, 1])
         xh = half_rho.untangle(xh, Lx)
-        # xh1 = half_rho.untangle(xh1, Lx)
         xh2 = half_rho.untangle(xh2, Lx)
+        xh3 = half_rho.untangle(xh3, Lx)
         yh = np.linspace(0, Ly - 1, Ly)
 
         print(i)
         if debug > 0:
-            rho[rho > 4] = 4
-            plt.imshow(rho.T, interpolation="none", origin="lower")
+            # rho[rho > 5] = 5
+            rho = load_snap.coarse_grain(x, y, Lx=Lx, Ly=Ly)
+            rho[rho > 5] = 5
+            plt.imshow(rho.T, origin="lower", cmap="viridis")
             plt.plot(yh, xh, "k")
-            # plt.plot(yh, xh1, "w--")
             plt.plot(yh, xh2, "r")
-            # plt.plot(yh, xh3, "g")
+            plt.plot(yh, xh3, "w")
+            plt.show()
+            plt.close()
+            plt.contourf(rho.T)
             plt.show()
             plt.close()
         w1.append(np.var(xh))

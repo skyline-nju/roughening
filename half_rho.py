@@ -89,7 +89,7 @@ def find_idx_max(rho_x, pre_idx_max, idx_range=20, mode=0):
         else:
             idx_m = np.argmax(rho_x)
             dx = idx - idx_m
-            if 0 < dx < n / 2 or dx < -n/2:
+            if 0 < dx < n / 2 or dx < -n / 2:
                 pass
             else:
                 idx = idx_m
@@ -128,7 +128,7 @@ def find_rho_half(rho_x,
             print("Need xh_pre and rho_h.")
             sys.exit()
         gap = xh_pre - (idx_max + 0.5)
-        if 0 < gap < n / 2 or gap < -n/2:
+        if 0 < gap < n / 2 or gap < -n / 2:
             is_find_xh = False
             for i in range(int(xh_pre) + 6, int(xh_pre) - 5, -1):
                 rho0 = rho_x[(i - 1) % n]

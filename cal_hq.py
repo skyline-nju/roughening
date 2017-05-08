@@ -10,6 +10,7 @@ import matplotlib
 import load_snap
 from half_peak import find_interface
 from half_rho import untangle
+from w_Ly_short_time import add_line
 import platform
 if platform.system() is "Windows":
     import matplotlib.pyplot as plt
@@ -97,23 +98,32 @@ def read(Lx, Ly):
         return q2, hq2
 
 
-def plot_varied_sigma_y(Lx, Ly, eta=0.18, eps=0, ax=None):
+def plot_varied_sigma_y(Lx, Ly, eta=0.18, eps=0, ax=None, save=False):
     if ax is None:
         flag_show = True
-        ax = plt.subplot(111)
+        fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(5, 5))
     else:
         flag_show = False
     q2, hq2 = read(Lx, Ly)
     for sigma_y in hq2:
-        ax.plot(q2, hq2[sigma_y], "o", label=r"$\sigma_y=%d$" % sigma_y)
+        ax.plot(q2, hq2[sigma_y], "o", label=r"$\sigma_y=%d$" % sigma_y, ms=2)
     ax.set_xscale("log")
     ax.set_yscale("log")
-    ax.set_xlabel(r"$(q / 2\pi)^2$")
-    ax.set_ylabel(r"$\langle |h_q|^2\rangle_t$")
+    ax.set_xlabel(r"$(q / 2\pi)^2$", fontsize="large")
+    ax.set_ylabel(r"$\langle |h_q|^2\rangle_t$", fontsize="large")
+    llabel = r"${\rm slope}=-1$"
+    add_line(ax, 0, 0.75, 1, -1, scale="log", label=llabel, xl=0.3, yl=0.4)
+    add_line(ax, 0, 0.92, 1, -1, scale="log")
+    add_line(ax, 0.1, 1, 1, -1, scale="log")
     ax.legend()
+    ax.set_title(r"$\eta=0.18, \epsilon=0, \rho_0=1, L_x=%d, L_y=%d$" %
+                 (Lx, Ly))
     if flag_show:
         plt.tight_layout()
-        plt.show()
+        if not save:
+            plt.show()
+        else:
+            plt.savefig(r"data\hq\varied_sy_%d_%d.pdf" % (Lx, Ly))
         plt.close()
 
 
@@ -154,12 +164,31 @@ def plot_varied_Ly(Lx,
         xlabel = r"$L_y \cdot (q / 2\pi)^2$"
     else:
         xlabel = r"$(q / 2\pi)^2$"
-    ax.set_ylabel(ylabel)
-    ax.set_xlabel(xlabel)
+    ax.set_ylabel(ylabel, fontsize="large")
+    ax.set_xlabel(xlabel, fontsize="large")
     ax.legend()
     if flag_show:
         plt.show()
         plt.close()
+
+
+def two_panel_varied_Ly(Lx, Lys, sigma_y, show=True):
+    fig, (ax1, ax2) = plt.subplots(nrows=1, ncols=2, figsize=(10, 5))
+    plot_varied_Ly(Lx, sigma_y, Lys, ax=ax1)
+    plot_varied_Ly(Lx, sigma_y, Lys, ax=ax2, y_rescaled=True)
+    llabel = r"${\rm slope}=-1$"
+    add_line(ax1, 0, 0.9, 0.95, -1, scale="log", label=llabel, xl=0.3, yl=0.45)
+    add_line(ax2, 0, 0.9, 0.95, -1, scale="log", label=llabel, xl=0.3, yl=0.45)
+    plt.suptitle(
+        r"$\eta=0.18, \epsilon=0, \rho_0=1, L_x=%d, \sigma_y=%d$" %
+        (Lx, sigma_y),
+        fontsize="x-large")
+    plt.tight_layout(rect=[0, 0, 1, 0.96])
+    if show:
+        plt.show()
+    else:
+        plt.savefig(r"data\hq\varied_Lx_%d_sy_%d.pdf" % (Lx, sigma_y))
+    plt.close()
 
 
 def plot_varied_Lx(Ly, sigma_y, Lxs, eta=0.18, eps=0, ax=None):
@@ -184,8 +213,8 @@ def plot_varied_Lx(Ly, sigma_y, Lxs, eta=0.18, eps=0, ax=None):
 
 if __name__ == "__main__":
     # plot_varied_sigma_y(180, 1000)
-    ax1 = plt.subplot(121)
-    plot_varied_Lx(600, 10, [150, 160, 180, 200, 220], ax=ax1)
-    ax2 = plt.subplot(122)
-    plot_varied_Ly(180, 5, [200, 400, 600, 800, 1000], y_rescaled=True, ax=ax2)
-    plt.show()
+    Lx = 180
+    Lys = [200, 400, 600, 800, 1000]
+    sigma_y = 10
+    two_panel_varied_Ly(Lx, Lys, sigma_y, show=False)
+    # plot_varied_sigma_y(180, 1000, save=True)

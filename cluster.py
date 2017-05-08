@@ -58,19 +58,19 @@ def region_query(i, x, y, r0, Lx, Ly, cell_list):
             dy += Ly
         elif dy > 0.5 * Ly:
             dy -= Ly
-        return dx ** 2 + dy ** 2
+        return dx**2 + dy**2
 
     neighbor = []
     x0 = x[i]
     y0 = y[i]
     col0 = int(x0)
     row0 = int(y0)
-    for row in range(row0-1, row0+2):
+    for row in range(row0 - 1, row0 + 2):
         if row < 0:
             row += Ly
         elif row >= Ly:
             row -= Ly
-        for col in range(col0-1, col0+2):
+        for col in range(col0 - 1, col0 + 2):
             if col < 0:
                 col += Lx
             elif col >= Lx:
@@ -95,44 +95,42 @@ def create_cell_list(x, y, Lx, Ly):
     return cell
 
 
-def show_cluster(x, y, c, ax):
+def show_cluster(x, y, Lx, Ly, ax=None, c=None):
+    if c is None:
+        cell_list = create_cell_list(x, y, Lx, Ly)
+        c = DBSCAN(x, y, 1, 3, Lx, Ly, cell_list)
     c = sorted(c, key=lambda x: len(x), reverse=True)
-    clist = plt.cm.jet(np.linspace(0, 1, 11))
+    if ax is None:
+        fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(10, 4))
+        flag_show = True
+    else:
+        flag_show = False
+    clist = plt.cm.jet(np.linspace(1, 0, 20))
     for i, ci in enumerate(c):
-        if i < 10:
+        if i < 20:
             color = clist[i]
         else:
-            color = clist[-1]
-        ax.plot(x[ci], y[ci], "o", c=color, ms=0.5)
+            color = "#7f7f7f"
+        ax.plot(y[ci], x[ci], "o", c=color, ms=0.2)
+    ax.set_xlim(0, Ly)
+    ax.set_ylim(0, Lx)
+    ax.set_xlabel("$y$")
+    ax.set_ylabel("$x$")
+    ax.set_title(r"$\eta=0.18, \epsilon=0, \rho_0=1, L_x=%d, L_y=%d$" %
+                 (Lx, Ly))
+    if flag_show:
+        plt.tight_layout()
+        plt.show()
+        plt.close()
 
 
 if __name__ == "__main__":
     import load_snap
     os.chdir(r"D:\tmp")
-    Lx = 220
-    Ly = 800
-    file = r"so_0.35_0.02_%d_%d_%d_2000_1234.bin" % (Lx, Ly, Lx * Ly)
+    Lx = 180
+    Ly = 1000
+    file = r"so_0.35_0_%d_%d_%d_2000_1234.bin" % (Lx, Ly, Lx * Ly)
     snap = load_snap.RawSnap(file)
-    for frame in snap.gene_frames(8):
+    for frame in snap.gene_frames(1758, 1759):
         x, y, theta = frame
-        # mask = x < 40
-        # x = x[mask]
-        # y = y[mask]
-        # theta = theta[mask]
-
-        # mask = y < 40
-        # x = x[mask]
-        # y = y[mask]
-        # theta = theta[mask]
-
-        # plt.subplot(121)
-        # plt.plot(x, y, 'o', ms=1)
-        # plt.scatter(x, y, c=theta, s=1, cmap="hsv")
-        # ax = plt.subplot(122)
-        ax = plt.subplot()
-        cell_list = create_cell_list(x, y, Lx, Ly)
-        c = DBSCAN(x, y, 1, 3, Lx, Ly, cell_list)
-        print(len(c))
-        show_cluster(y, x, c, ax)
-        plt.show()
-        plt.close()
+        show_cluster(x, y, Lx, Ly)
