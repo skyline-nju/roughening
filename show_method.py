@@ -30,9 +30,9 @@ if __name__ == "__main__":
         rho = load_snap.coarse_grain(x, y, Lx=Lx, Ly=Ly)
         rho[rho > 5] = 5
         plt.imshow(rho.T, origin="lower", cmap="viridis", aspect="auto")
-        plt.plot(yh, xh, "k", label=r"$\sigma_y=1$")
-        plt.plot(yh, xh2, "r", label=r"$\sigma_y=5$")
-        plt.plot(yh, xh3, "w", label=r"$\sigma_y=10$")
+        plt.plot(yh, xh, "k", label=r"$\sigma_y=1, w^2=%.4f$" % (np.var(xh)))
+        plt.plot(yh, xh2, "r", label=r"$\sigma_y=5, w^2=%.4f$" % (np.var(xh2)))
+        plt.plot(yh, xh3, "w", label=r"$\sigma_y=10, w^2=%.4f$" % (np.var(xh3)))
         plt.xlabel(r"$y$")
         plt.ylabel(r"$x$")
         plt.title(r"$\eta=0.18, \epsilon=0, \rho_0=1, L_x=%d, L_y=%d$" %
