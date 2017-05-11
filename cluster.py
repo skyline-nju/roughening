@@ -101,7 +101,7 @@ def show_cluster(x, y, Lx, Ly, ax=None, c=None):
         c = DBSCAN(x, y, 1, 3, Lx, Ly, cell_list)
     c = sorted(c, key=lambda x: len(x), reverse=True)
     if ax is None:
-        fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(10, 4))
+        fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(14, 3.5))
         flag_show = True
     else:
         flag_show = False
@@ -120,7 +120,9 @@ def show_cluster(x, y, Lx, Ly, ax=None, c=None):
                  (Lx, Ly))
     if flag_show:
         plt.tight_layout()
-        plt.show()
+        # plt.show()
+        # plt.close()
+        plt.savefig("cluster_%d_%d.jpg" % (Lx, Ly), dpi=200)
         plt.close()
 
 
