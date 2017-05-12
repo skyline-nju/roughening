@@ -4,8 +4,15 @@
 """
 
 import os
+import sys
 import numpy as np
-import matplotlib.pyplot as plt
+import platform
+import matplotlib
+if platform.system() is "Windows":
+    import matplotlib.pyplot as plt
+else:
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
 
 
 def DBSCAN(x, y, r0, MinPts, Lx, Ly, cell_list):
@@ -88,6 +95,10 @@ def create_cell_list(x, y, Lx, Ly):
     for i in range(n):
         col = int(x[i])
         row = int(y[i])
+        if col >= Lx:
+            col = Lx - 1
+        if row >= Ly:
+            row = Ly - 1
         if cell[row, col] == 0:
             cell[row, col] = [i]
         else:
@@ -95,10 +106,56 @@ def create_cell_list(x, y, Lx, Ly):
     return cell
 
 
-def show_cluster(x, y, Lx, Ly, ax=None, c=None):
+def cal_cluster_dis(x, y, Lx, Ly, ns_dict, MinPts=3):
+    """ Issue: normalization
+    """
+    N = Lx * Ly
+    cell_list = create_cell_list(x, y, Lx, Ly)
+    cluster = DBSCAN(x, y, 1, MinPts, Lx, Ly, cell_list)
+    mass = [len(c) for c in cluster]
+    for n in mass:
+        if n in ns_dict:
+            ns_dict[n] += 1/N
+        else:
+            ns_dict[n] = 1/N
+    ns1 = (Lx*Ly - sum(mass)) / N
+    if 1 in ns_dict:
+        ns_dict[1] += ns1
+    else:
+        ns_dict[1] = ns1
+
+
+def mean_ns(file, t_beg=300, t_end=None, dt=1, out=False):
+    para_list = file.split("_")
+    Lx = int(para_list[3])
+    Ly = int(para_list[4])
+    eps = float(para_list[2])
+    snap = load_snap.RawSnap(file)
+    ns_dict = {}
+    count = 0
+    for frame in snap.gene_frames(t_beg, t_end, dt):
+        x, y, theta = frame
+        cal_cluster_dis(x, y, Lx, Ly, ns_dict, MinPts=1)
+        count += 1
+    for key in ns_dict:
+        ns_dict[key] /= count
+    if not out:
+        s = []
+        ns = []
+        for key in ns_dict:
+            ns.append(ns_dict[key])
+            s.append(key)
+        return s, ns
+    else:
+        with open(r"ns_%d_%d_%g.dat" % (Lx, Ly, eps), "w") as f:
+            for key in sorted(ns_dict.keys()):
+                f.write("%d\t%f\n" % (key, ns_dict[key]))
+
+
+def show_cluster(x, y, Lx, Ly, ax=None, c=None, MinPts=3):
     if c is None:
         cell_list = create_cell_list(x, y, Lx, Ly)
-        c = DBSCAN(x, y, 1, 3, Lx, Ly, cell_list)
+        c = DBSCAN(x, y, 1, MinPts, Lx, Ly, cell_list)
     c = sorted(c, key=lambda x: len(x), reverse=True)
     if ax is None:
         fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(14, 3.5))
@@ -120,19 +177,20 @@ def show_cluster(x, y, Lx, Ly, ax=None, c=None):
                  (Lx, Ly))
     if flag_show:
         plt.tight_layout()
-        # plt.show()
-        # plt.close()
-        plt.savefig("cluster_%d_%d.jpg" % (Lx, Ly), dpi=200)
+        plt.show()
+        # plt.savefig("cluster_%d_%d.jpg" % (Lx, Ly), dpi=200)
         plt.close()
 
 
 if __name__ == "__main__":
     import load_snap
-    os.chdir(r"D:\tmp")
-    Lx = 180
-    Ly = 1000
-    file = r"so_0.35_0_%d_%d_%d_2000_1234.bin" % (Lx, Ly, Lx * Ly)
-    snap = load_snap.RawSnap(file)
-    for frame in snap.gene_frames(1758, 1759):
-        x, y, theta = frame
-        show_cluster(x, y, Lx, Ly)
+
+    if platform.system() is not "Windows":
+        path, file = sys.argv[1].split("/")
+        os.chdir(path)
+        mean_ns(file, t_beg=300, out=True)
+    else:
+        os.chdir(r"D:\tmp")
+        file1 = r"so_0.35_0.02_220_800_176000_2000_1234.bin"
+        mean_ns(file1, t_beg=300, t_end=301, out=True)
+
