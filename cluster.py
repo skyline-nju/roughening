@@ -15,7 +15,7 @@ else:
     import matplotlib.pyplot as plt
 
 
-def DBSCAN(x, y, r0, MinPts, Lx, Ly, cell_list):
+def DBSCAN(x, y, r0, MinPts, Lx, Ly, cell_list, ret_count=False):
     n = x.size
     visited = np.zeros(n, bool)
     clustered = np.zeros(n, bool)
@@ -30,7 +30,10 @@ def DBSCAN(x, y, r0, MinPts, Lx, Ly, cell_list):
         else:
             c_new = expand_cluster(i, neighborPts, visited, clustered, x, y,
                                    r0, MinPts, Lx, Ly, cell_list)
-            c.append(c_new)
+            if ret_count:
+                c.append(len(c_new))
+            else:
+                c.append(c_new)
     return c
 
 
@@ -106,19 +109,20 @@ def create_cell_list(x, y, Lx, Ly):
     return cell
 
 
-def cal_cluster_dis(x, y, Lx, Ly, ns_dict, MinPts=3):
+def cal_cluster_dis(x, y, Lx, Ly, ns_dict, MinPts=3, cluster=None):
     """ Issue: normalization
     """
-    N = Lx * Ly
-    cell_list = create_cell_list(x, y, Lx, Ly)
-    cluster = DBSCAN(x, y, 1, MinPts, Lx, Ly, cell_list)
-    mass = [len(c) for c in cluster]
+    if cluster is None:
+        cell_list = create_cell_list(x, y, Lx, Ly)
+        mass = DBSCAN(x, y, 1, MinPts, Lx, Ly, cell_list, ret_count=True)
+    else:
+        mass = [len(c) for c in cluster]
     for n in mass:
         if n in ns_dict:
-            ns_dict[n] += 1/N
+            ns_dict[n] += 1
         else:
-            ns_dict[n] = 1/N
-    ns1 = (Lx*Ly - sum(mass)) / N
+            ns_dict[n] = 1
+    ns1 = (Lx*Ly - sum(mass))
     if 1 in ns_dict:
         ns_dict[1] += ns1
     else:
@@ -132,13 +136,12 @@ def mean_ns(file, t_beg=300, t_end=None, dt=1, out=False):
     eps = float(para_list[2])
     snap = load_snap.RawSnap(file)
     ns_dict = {}
-    count = 0
     for frame in snap.gene_frames(t_beg, t_end, dt):
         x, y, theta = frame
         cal_cluster_dis(x, y, Lx, Ly, ns_dict, MinPts=1)
-        count += 1
+    tot_cluster = sum(ns_dict.values())
     for key in ns_dict:
-        ns_dict[key] /= count
+        ns_dict[key] /= tot_cluster
     if not out:
         s = []
         ns = []
@@ -192,5 +195,6 @@ if __name__ == "__main__":
     else:
         os.chdir(r"D:\tmp")
         file1 = r"so_0.35_0.02_220_800_176000_2000_1234.bin"
-        mean_ns(file1, t_beg=300, t_end=301, out=True)
-
+        s, ns = mean_ns(file1, t_beg=300, t_end=304, out=False)
+        plt.loglog(s, ns, "o")
+        plt.show()
