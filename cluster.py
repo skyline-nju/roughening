@@ -129,16 +129,24 @@ def cal_cluster_dis(x, y, Lx, Ly, ns_dict, MinPts=3, cluster=None):
         ns_dict[1] = ns1
 
 
-def mean_ns(file, t_beg=300, t_end=None, dt=1, out=False):
+def mean_ns(file, t_beg=300, t_end=None, dt=1, out=False, cmodule=True):
     para_list = file.split("_")
     Lx = int(para_list[3])
     Ly = int(para_list[4])
     eps = float(para_list[2])
     snap = load_snap.RawSnap(file)
     ns_dict = {}
-    for frame in snap.gene_frames(t_beg, t_end, dt):
-        x, y, theta = frame
-        cal_cluster_dis(x, y, Lx, Ly, ns_dict, MinPts=1)
+    if not cmodule:
+        for frame in snap.gene_frames(t_beg, t_end, dt):
+            x, y, theta = frame
+            cal_cluster_dis(x, y, Lx, Ly, ns_dict, MinPts=1)
+    else:
+        for frame in snap.gene_frames(t_beg, t_end, dt):
+            x, y, theta = frame
+            num_arr = np.zeros(x.size, int)
+            sep = np.zeros(x.size, int)
+            clustering.DBSCAN(x, y, 1, 1, Lx, Ly, num_arr, sep)
+            update_cluster_from_sep(sep, ns_dict)
     tot_cluster = sum(ns_dict.values())
     for key in ns_dict:
         ns_dict[key] /= tot_cluster
@@ -185,16 +193,40 @@ def show_cluster(x, y, Lx, Ly, ax=None, c=None, MinPts=3):
         plt.close()
 
 
+def update_cluster_from_sep(sep, cluster_dict):
+    pos_pre = 0
+    for pos in sep:
+        if pos == 0:
+            break
+        size = pos - pos_pre
+        if size in cluster_dict:
+            cluster_dict[size] += 1
+        else:
+            cluster_dict[size] = 1
+        pos_pre = pos
+
+
 if __name__ == "__main__":
     import load_snap
-
+    import clustering
+    import time
     if platform.system() is not "Windows":
         path, file = sys.argv[1].split("/")
         os.chdir(path)
         mean_ns(file, t_beg=300, out=True)
     else:
         os.chdir(r"D:\tmp")
-        file1 = r"so_0.35_0.02_220_800_176000_2000_1234.bin"
-        s, ns = mean_ns(file1, t_beg=300, t_end=304, out=False)
-        plt.loglog(s, ns, "o")
+        Lx = 180
+        Ly = 1000
+        eps = 0
+        file1 = r"so_0.35_%g_%d_%d_%d_2000_1234.bin" % (eps, Lx, Ly, Lx * Ly)
+        t0 = time.clock()
+        s, ns = mean_ns(file1, 100, 110, cmodule=True)
+        t1 = time.clock()
+        s2, ns2 = mean_ns(file1, 100, 110, cmodule=False)
+        t2 = time.clock()
+        print("dt1 = ", t1 - t0)
+        print("dt2 = ", t2 - t1)
+        print("dt2/dt1 = ", (t2-t1) / (t1-t0))
+        plt.loglog(s, ns, "s", s2, ns2, "o")
         plt.show()
