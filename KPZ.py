@@ -1,6 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import struct
+from skewness import skew, kurt
 from w_Ly_short_time import add_line
 
 
@@ -27,11 +28,10 @@ def get_log_time(t_end, exponent, show=False):
 
 
 class RSOS:
-    def __init__(self, L, N, flag=False):
+    def __init__(self, L, N):
         self.L = L
         self.N = N
         self.h = np.zeros(L, int)
-        self.flag = flag
 
     def deposit(self):
         while True:
@@ -45,19 +45,17 @@ class RSOS:
                 if abs(dh) <= self.N:
                     self.h[i] += 1
                     break
-            if self.flag:
-                break
 
     def eval(self, tmax, ts):
-        w = np.zeros(len(ts))
+        ht = np.zeros((len(ts), self.L))
         pos = 0
         for i in range(tmax):
             self.deposit()
             if i + 1 == ts[pos]:
-                w[pos] = np.var(self.h)
+                ht[pos] = self.h
                 if pos < len(ts) - 1:
                     pos += 1
-        return w
+        return ht
 
 
 def short_time_regime():
@@ -94,38 +92,22 @@ def cal_hq(hs):
 
 
 if __name__ == "__main__":
-    fig, (ax1, ax2, ax3) = plt.subplots(nrows=1, ncols=3, figsize=(10, 4))
-    Lxs = [256, 512, 1024, 2048, 4096]
-    ws = np.zeros(len(Lxs))
-    for i, Lx in enumerate(Lxs):
-        data = read("RSOS_%d_1_1.bin" % Lx)[250:]
-        q, A2 = cal_hq(data)
-        ax3.loglog(q**2, A2 * Lx, "o", ms=1, label=r"$L=%d$" % Lx)
-        w = np.array([np.var(h) for h in data])
-        ws[i] = np.mean(w)
-    ax3.set_xlabel(r"$(q/2\pi)^2$")
-    ax3.set_ylabel(r"$L \cdot \langle |h_q|^2\rangle_t$")
-    ax3.legend()
+    rsos = RSOS(4096, 1)
+    tmax = 10000000
+    ts = get_log_time(tmax, 1.02)
+    ht = rsos.eval(tmax, ts)
+    print(ht.shape)
 
-    ax1.loglog(Lxs, ws, "o")
-    ax1.set_xlabel(r"$L$")
-    ax1.set_ylabel(r"$\langle w^2\rangle_t$")
-
-    data = np.load("short_time.npz")
-    t = data["t"]
-    ws = data["w"]
-    for i, w in enumerate(ws):
-        ax2.loglog(t, w, "o", ms=1, label=r"$L=%d$" % Lxs[i])
-    ax2.set_xlabel(r"$t$")
-    ax2.set_ylabel(r"$w^2$")
-    ax2.legend()
-
-    add_line(ax1, 0, 0.1, 1, 1, label="slope=1", scale="log")
-    add_line(
-        ax2, 0, 0.1, 1, 2 / 3, label="slope=2/3", xl=0.4, yl=0.6, scale="log")
-    add_line(ax3, 0, 0.9, 1, -1, label="slope=-1", scale="log")
-    plt.suptitle("Restricted Solid-on-Solid (RSOS) Model")
-    plt.tight_layout(rect=[0, 0, 1, 0.96])
-    # plt.show()
-    plt.savefig("RSOS.pdf")
+    w = np.zeros(len(ts))
+    hm = np.zeros(len(ts))
+    gamma1 = np.zeros(len(ts))
+    for i in range(len(ts)):
+        w[i] = np.var(ht[i])
+        hm[i] = np.mean(ht[i])
+        gamma1[i] = skew(ht[i])
+    plt.plot(ts, gamma1, "o")
+    plt.xscale("log")
+    plt.show()
     plt.close()
+
+

@@ -143,8 +143,8 @@ def mean_ns(file, t_beg=300, t_end=None, dt=1, out=False, cmodule=True):
     else:
         for frame in snap.gene_frames(t_beg, t_end, dt):
             x, y, theta = frame
-            num_arr = np.zeros(x.size, int)
-            sep = np.zeros(x.size, int)
+            num_arr = np.zeros(x.size, np.int32)
+            sep = np.zeros(x.size, np.int32)
             clustering.DBSCAN(x, y, 1, 1, Lx, Ly, num_arr, sep)
             update_cluster_from_sep(sep, ns_dict)
     tot_cluster = sum(ns_dict.values())
@@ -211,9 +211,11 @@ if __name__ == "__main__":
     import clustering
     import time
     if platform.system() is not "Windows":
+        print(time.asctime(time.localtime(time.time())))
         path, file = sys.argv[1].split("/")
         os.chdir(path)
-        mean_ns(file, t_beg=300, out=True)
+        mean_ns(file, t_beg=300, t_end=310, out=True)
+        print(time.asctime(time.localtime(time.time())))
     else:
         os.chdir(r"D:\tmp")
         Lx = 180

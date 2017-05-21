@@ -74,6 +74,6 @@ if __name__ == "__main__":
             w[i, j] = np.mean(wj)
             line += "\t%f" % (w[i, j])
         print(line)
-    plt.loglog(Lys, w[:, 4], "-o")
+    plt.plot(Lys, w[:, 1:], "-o")
     plt.show()
     plt.close()

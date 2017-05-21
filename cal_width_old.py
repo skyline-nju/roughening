@@ -206,9 +206,7 @@ def isoline(rho0, Lx, Ly, colM, rowM, isovalue=2):
         elif h[i] - xm < -Lx * 0.5:
             h[i] += Lx
     h = np.array(h)
-    mean = np.mean(h)
-    var = np.var(h)
-    return var, mean, xm, yc, h
+    return h
 
 
 if __name__ == "__main__":
@@ -235,4 +233,6 @@ if __name__ == "__main__":
     f = open(outfile, "w")
     for frame in snap.gene_frames():
         t, vx, vy, rho = frame
+        h = isoline(rho, Lx, Ly, Lx, Ly//20)
+        f.write("%d\t%f\n" % (t, np.var(h)))
     f.close()

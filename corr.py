@@ -106,7 +106,7 @@ def handle_raw_snap():
 if __name__ == "__main__":
     os.chdir("data\interface")
     r = np.round(np.logspace(2, 18, 17, base=np.sqrt(2))).astype(int)
-    Lx = 160
+    Lx = 180
     Ly = 1000
     eps = 0
     sigma_y = 15

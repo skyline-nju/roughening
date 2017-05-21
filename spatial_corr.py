@@ -106,6 +106,6 @@ if __name__ == "__main__":
     C_rho2, C_J2, C_u2 = read_npz(file2)
     nrows2, ncols2 = C_rho2.shape
     plt.plot(C_J2[nrows2 // 2, ncols2 // 2:])
-    # plt.xscale("log")
+    plt.xscale("log")
     plt.yscale("log")
     plt.show()

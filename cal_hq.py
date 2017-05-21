@@ -177,8 +177,8 @@ def two_panel_varied_Ly(Lx, Lys, sigma_y, show=True):
     plot_varied_Ly(Lx, sigma_y, Lys, ax=ax1)
     plot_varied_Ly(Lx, sigma_y, Lys, ax=ax2, y_rescaled=True)
     llabel = r"${\rm slope}=-1$"
-    add_line(ax1, 0, 0.9, 0.95, -1, scale="log", label=llabel, xl=0.3, yl=0.45)
-    add_line(ax2, 0, 0.9, 0.95, -1, scale="log", label=llabel, xl=0.3, yl=0.45)
+    add_line(ax1, 0, 0.95, 0.95, -1, scale="log", label=llabel, xl=0.3, yl=0.45)
+    add_line(ax2, 0, 0.95, 0.95, -1, scale="log", label=llabel, xl=0.3, yl=0.45)
     plt.suptitle(
         r"$\eta=0.18, \epsilon=0, \rho_0=1, L_x=%d, \sigma_y=%d$" %
         (Lx, sigma_y),
@@ -215,6 +215,6 @@ if __name__ == "__main__":
     # plot_varied_sigma_y(180, 1000)
     Lx = 180
     Lys = [200, 400, 600, 800, 1000]
-    sigma_y = 10
+    sigma_y = 15
     two_panel_varied_Ly(Lx, Lys, sigma_y, show=False)
     # plot_varied_sigma_y(180, 1000, save=True)
