@@ -1,8 +1,9 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import struct
+from RSOS import run
 from skewness import skew, kurt
-from w_Ly_short_time import add_line
+# from w_Ly_short_time import add_line
 
 
 def get_log_time(t_end, exponent, show=False):
@@ -92,22 +93,38 @@ def cal_hq(hs):
 
 
 if __name__ == "__main__":
-    rsos = RSOS(4096, 1)
-    tmax = 10000000
-    ts = get_log_time(tmax, 1.02)
-    ht = rsos.eval(tmax, ts)
-    print(ht.shape)
+    tmax = 1000000000
+    ts = get_log_time(tmax, 1.08)
+    ts = np.array(ts)
+    n = ts.size
+    L = 1024
+    gamma1 = np.zeros(n)
+    gamma2 = np.zeros(n)
+    sample_size = 1
+    for seed in range(10, sample_size + 10):
+        ht = np.zeros(ts.size * L, int)
+        run(L, 1, seed, ts, ht)
+        ht = ht.reshape(n, L)
+        gamma1 += np.array([skew(i) for i in ht])
+        gamma2 += np.array([kurt(i) for i in ht])
+    gamma1 /= sample_size
+    gamma2 /= sample_size
 
-    w = np.zeros(len(ts))
-    hm = np.zeros(len(ts))
-    gamma1 = np.zeros(len(ts))
-    for i in range(len(ts)):
-        w[i] = np.var(ht[i])
-        hm[i] = np.mean(ht[i])
-        gamma1[i] = skew(ht[i])
+    plt.subplot(211)
     plt.plot(ts, gamma1, "o")
     plt.xscale("log")
+    plt.xlim(100)
+    plt.ylim(-1, 1.5)
+    plt.ylabel(r"$\gamma_1$")
+    plt.axhline(0.29)
+    plt.subplot(212)
+    plt.plot(ts, gamma2, "o")
+    plt.xscale("log")
+    plt.xlim(100)
+    plt.ylim(-1.5, 1.5)
+    plt.xlabel(r"$t$")
+    plt.ylabel(r"$\gamma_2$")
+    plt.axhline(0.16)
+    plt.suptitle("RSOS model with L=1024")
+    plt.tight_layout(rect=[0, 0, 1, 0.98])
     plt.show()
-    plt.close()
-
-
