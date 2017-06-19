@@ -51,6 +51,7 @@ class Snap:
         self.f.seek(0, 2)
         self.file_size = self.f.tell()
         self.f.seek(0)
+        print("open ", file)
 
     def one_frame(self):
         """ Need rewrite for subclass. """
@@ -301,6 +302,34 @@ def coarse_grain(x,
         return rho
 
 
+class NewCoarseGrainSnap(Snap):
+    def __init__(self, file):
+        str_list = file.split("_")
+        self.ncols = int(str_list[3])
+        self.nrows = int(str_list[4])
+        self.N = self.ncols * self.nrows
+        self.file = file
+        self.fmt = "%dB" % (self.N)
+        self.snap_size = self.frame_size = self.N
+        self.open_file(file)
+        with open(file.replace(".bin", ".dat")) as f:
+            lines = f.readlines()
+            self.t = np.zeros(len(lines), int)
+            self.phi = np.zeros(len(lines))
+            for i, line in enumerate(lines):
+                s = line.replace("\n", "").split("\t")
+                self.t[i] = int(s[0])
+                self.phi[i] = float(s[1])
+
+    def one_frame(self):
+        idx = self.f.tell() // self.frame_size
+        buff = self.f.read(self.frame_size)
+        data = struct.unpack(self.fmt, buff)
+        num = np.array(data).reshape(self.nrows, self.ncols)
+        frame = [self.t[idx], self.phi[idx], num]
+        return frame
+
+
 def coarse_grain2(x, y, theta, Lx=None, Ly=None, ncols=None, nrows=None):
     if Lx is None:
         Lx = int(np.round(x.max()))
@@ -433,23 +462,18 @@ def handle_raw_snap(file):
 
 if __name__ == "__main__":
     """ Just for test. """
-    # os.chdir(r"D:\code\VM\VM\snap")
-    # show_separated_snaps(
-    #     180,
-    #     20,
-    #     312,
-    #     1000,
-    #     100000,
-    #     1000,
-    #     0.35,
-    #     0,
-    #     transpos=True,
-    #     sigma=[5, 1])
-    # snap = RawSnap(r"s_0.35_0_1_180_20_313_00800000.bin")
-    # snap.show()
-    # os.chdir(r"D:\tmp")
-    # snap = CoarseGrainSnap(
-    #     "cB_0.35_0.02_220_25600_220_25600_5632000_1.06_4237.bin")
-    # snap.show(sigma=[15, 1], show=True, i_beg=90)
-    file = sys.argv[1]
-    handle_raw_snap(file)
+    os.chdir(r"D:\data\tilt")
+    file = r"c_0.35_0_360_12000_2976000_42336_1.08.bin"
+    with open(file.replace(".bin", ".dat")) as f:
+        lines = f.readlines()
+        t = np.array([int(line.split("\t")[0]) for line in lines])
+    snap = NewCoarseGrainSnap(file)
+    for i, frame in enumerate(snap.gene_frames()):
+        if (t[i] > 1000):
+            frame[frame > 5] = 5
+            plt.figure(figsize=(14, 4))
+            plt.imshow(frame.T, origin="lower", aspect="auto")
+            plt.title(r"i=%d, t=%d" % (i, t[i]))
+            plt.tight_layout()
+            plt.show()
+            plt.close()

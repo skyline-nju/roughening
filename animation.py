@@ -1,7 +1,8 @@
-""" Make an animation to show the growthing of band.
+""" Make an animation to show the roughening of band.
 
     Meanwhile, output the time serials of order parameters and width
     of interface.
+
 """
 
 import os
@@ -21,8 +22,16 @@ if platform.system() is "Windows":
 else:
     import matplotlib.pyplot as plt
     import matplotlib.animation as animation
-    plt.rcParams['animation.ffmpeg_path'] = "/home-yw/users/nsyw449_YK" \
-        + "/dy/Program/ffmpeg-3.3-64bit-static/ffmpeg"
+    dest = "/ffmpeg-3.3-64bit-static/ffmpeg"
+    path1 = "/home-gk/users/nscc1185/Applications"
+    path2 = "/home-yw/users/nsyw449_YK/dy/Program"
+    if os.path.exists(path1):
+        plt.rcParams['animation.ffmpeg_path'] = path1 + dest
+    elif os.path.exists(path2):
+        plt.rcParams['animation.ffmpeg_path'] = path2 + dest
+    else:
+        print("Error, cannot find ffmpeg")
+        sys.exit()
 
 
 def get_para(file):
@@ -45,19 +54,37 @@ def get_para(file):
         eps = float(s[2])
         Lx = int(s[3])
         Ly = int(s[4])
-        N = int(s[7])
+        # N = int(s[7])
+        N = int(s[5])
+        print("eta = %g, eps = %g, Lx = %d, Ly = %d, N = %d" %
+              (eta, eps, Lx, Ly, N))
     return eta, eps, Lx, Ly, N
 
 
-def make_movie_single(file, t_beg=0, t_end=None, interval=1, out_data=False):
+def make_movie_single(file, t_beg=0, t_end=None, interval=1, format=1):
     """ Make movie from one single file.
 
         Each frame contains the contour plot of density and curves of
         interfaces estimated by diffrent sigma_y.
+
+        Parameters:
+        --------
+        file: str
+            The filename of input data.
+        t_beg, t_end, interval: int
+            First, last and interval of frames.
+        format: int
+            1: each frame contains t, vxm, vym, num,
+            2: each frame only contains t, phi, num.
+
     """
 
-    def update_frame(frame):
-        t, vxm, vym, num = frame
+    def update_frame(frame, format=1):
+        if format == 1:
+            t, vxm, vym, num = frame
+            phi = np.sqrt(vxm**2 + vym**2)
+        elif format == 2:
+            t, phi, num = frame
         rho = num.astype(float)
         rho_s = gaussian_filter(rho, sigma=[5, 1])
         xh1, rho_h = half_peak.find_interface(rho, sigma=[5, 1])
@@ -77,20 +104,21 @@ def make_movie_single(file, t_beg=0, t_end=None, interval=1, out_data=False):
         xh2 += dx
         xh3 += dx
         rho_s = np.roll(rho_s, dx, axis=1)
-        phi = np.sqrt(vxm**2 + vym**2)
         im.set_data(rho_s.T)
         line1.set_data(yh, xh1)
-        # line2.set_data(yh, xh2)
         line3.set_data(yh, xh3)
         title.set_text(title_template % (eta, eps, Lx, Ly, N, t, phi, w1, w3))
         writer.grab_frame()
         print("t=", t)
-        if out_data:
-            f.write("%d\t%f\t%f\t%f\t%f\t%f\n" % (t, phi, w1, w2, w3, w4))
+        f.write("%d\t%f\t%f\t%f\t%f\t%f\n" % (t, phi, w1, w2, w3, w4))
 
     eta, eps, Lx, Ly, N = get_para(file)
     yh = np.arange(Ly) + 0.5
-    snap = load_snap.CoarseGrainSnap(file)
+    if format == 1:
+        snap = load_snap.CoarseGrainSnap(file)
+    elif format == 2:
+        snap = load_snap.NewCoarseGrainSnap(file)
+    file = file.replace("../c", "w")
     frames = snap.gene_frames(t_beg, t_end, interval=interval)
     FFMpegWriter = animation.writers["ffmpeg"]
     writer = FFMpegWriter(fps=4, metadata=dict(artist='Matplotlib'))
@@ -110,13 +138,12 @@ def make_movie_single(file, t_beg=0, t_end=None, interval=1, out_data=False):
     title_template = r"$\eta=%g, \epsilon=%g, L_x=%d, L_y=%d, N=%d, t=%d," \
         + r"\phi=%.4f, w^2(\sigma_y=5)=%.4f, w^2(\sigma_y=15)=%.4f$"
     plt.tight_layout(rect=[0, 0, 1, 0.96])
-    if out_data:
-        f = open(file.replace(".bin", ".dat"), "w")
+
+    f = open(file.replace(".bin", ".dat"), "w")
     with writer.saving(fig, file.replace(".bin", ".mp4"), dpi=100):
         for frame in frames:
-            update_frame(frame)
-    if out_data:
-        f.close()
+            update_frame(frame, format=format)
+    f.close()
 
 
 def make_movie_mult(files, t_beg=0, t_end=None):
@@ -183,10 +210,10 @@ if __name__ == "__main__":
         interval = 1
         N = Lx * Ly
     else:
-        os.chdir("coarse")
+        # os.chdir("coarse")
         if len(sys.argv) == 2:
-            file = sys.argv[1].split("/")[1]
-            make_movie_single(file, out_data=True)
+            path = sys.argv[1]
+            make_movie_single(path, format=2)
         elif len(sys.argv) > 2:
             files = [file.split("/")[1] for file in sys.argv[1:]]
             make_movie_mult(files)
